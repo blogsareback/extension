@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite/
+
+# Packaged extensions
+*.zip
+
+# It's 2026
+CLAUDE.md
+.claude/

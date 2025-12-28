@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Blogs Are Back - Feed Fetcher",
+  "version": "1.1.0",
+  "description": "Fetch RSS/Atom feeds directly from your browser for Blogs Are Back",
+  "permissions": ["storage", "contextMenus", "tabs", "notifications", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "scripts": ["service-worker.js"],
+    "type": "module"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "extension@blogsareback.com",
+      "strict_min_version": "121.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://blogsareback.com/*",
+        "https://www.blogsareback.com/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["feed-discovery.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected-script.js", "assets/*"],
+      "matches": [
+        "https://blogsareback.com/*",
+        "https://www.blogsareback.com/*"
+      ]
+    }
+  ]
+}
