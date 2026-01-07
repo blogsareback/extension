@@ -14,7 +14,9 @@ import {
   DIRECTORY_CHECK_ALARM,
 } from './utils/constants';
 import { getSettings, updateSettings, clearData } from './storage/settings';
-import { updateStats } from './storage/stats';
+import { updateStats, type UpdateStatsParams } from './storage/stats';
+import { updateAnalytics, getAnalyticsSummary } from './storage/analytics';
+import type { ErrorCategory } from '../utils/types';
 import { getDirectoryUpdatesState, getCustomBlogUpdatesState } from './storage/state';
 
 // Handlers
@@ -74,6 +76,8 @@ import type {
   SyncFollowedBlogsRequest,
   SyncAllBlogsRequest,
   ExtensionSettings,
+  GetAnalyticsRequest,
+  GetAnalyticsResponse,
 } from '../utils/types';
 
 // ============================================
@@ -95,6 +99,50 @@ browser.tabs.onRemoved.addListener((tabId) => {
 browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   await handleTabUpdated(tabId, changeInfo);
 });
+
+// ============================================
+// Statistics Helper
+// ============================================
+
+/**
+ * Infer error category from error message for statistics tracking.
+ * Maps common error patterns to categories.
+ */
+function inferErrorCategory(errorMessage?: string): ErrorCategory | undefined {
+  if (!errorMessage) return undefined;
+
+  const msg = errorMessage.toLowerCase();
+
+  // Validation errors (SSRF, invalid URL, blocked, content type issues)
+  if (
+    msg.includes('invalid') ||
+    msg.includes('blocked') ||
+    msg.includes('unsupported media') ||
+    msg.includes('too large') ||
+    msg.includes('payload') ||
+    msg.includes('exceeds')
+  ) {
+    return 'validation';
+  }
+
+  // Timeout errors
+  if (msg.includes('timeout') || msg.includes('abort')) {
+    return 'timeout';
+  }
+
+  // Server errors (5xx)
+  if (msg.includes('server error') || msg.includes('(5')) {
+    return 'server';
+  }
+
+  // Client errors (4xx)
+  if (msg.includes('client error') || msg.includes('(4') || msg.includes('not found')) {
+    return 'client';
+  }
+
+  // Default to network for other errors
+  return 'network';
+}
 
 // ============================================
 // Message Handler
@@ -369,10 +417,28 @@ browser.runtime.onMessage.addListener(
           request.feedUrl
         );
 
-        // Handle async fetch
+        // Handle async fetch with timing
+        const startTime = Date.now();
         fetchFeed(request.feedUrl, request.requestId).then((result) => {
-          // Update statistics
-          updateStats(result.success, request.feedUrl);
+          const responseTimeMs = Date.now() - startTime;
+          const errorCategory = inferErrorCategory(result.error);
+
+          // Update detailed statistics (for popup)
+          updateStats({
+            operationType: 'feedFetch',
+            url: request.feedUrl,
+            success: result.success,
+            errorCategory,
+            errorMessage: result.error,
+            responseTimeMs,
+          });
+
+          // Update analytics (for web app)
+          updateAnalytics({
+            operationType: 'feedFetch',
+            success: result.success,
+            errorCategory,
+          });
 
           // Send response
           sendResponse(result);
@@ -392,10 +458,28 @@ browser.runtime.onMessage.addListener(
           request.url
         );
 
-        // Handle async fetch
+        // Handle async fetch with timing
+        const startTime = Date.now();
         fetchPage(request.url, request.requestId).then((result) => {
-          // Update statistics
-          updateStats(result.success, request.url);
+          const responseTimeMs = Date.now() - startTime;
+          const errorCategory = inferErrorCategory(result.error);
+
+          // Update detailed statistics (for popup)
+          updateStats({
+            operationType: 'pageFetch',
+            url: request.url,
+            success: result.success,
+            errorCategory,
+            errorMessage: result.error,
+            responseTimeMs,
+          });
+
+          // Update analytics (for web app)
+          updateAnalytics({
+            operationType: 'pageFetch',
+            success: result.success,
+            errorCategory,
+          });
 
           // Send response
           sendResponse(result);
@@ -415,10 +499,28 @@ browser.runtime.onMessage.addListener(
           request.url
         );
 
-        // Handle async extraction
+        // Handle async extraction with timing
+        const startTime = Date.now();
         extractReadableText(request.url, request.requestId).then((result) => {
-          // Update statistics
-          updateStats(result.success, request.url);
+          const responseTimeMs = Date.now() - startTime;
+          const errorCategory = inferErrorCategory(result.error);
+
+          // Update detailed statistics (for popup)
+          updateStats({
+            operationType: 'readableText',
+            url: request.url,
+            success: result.success,
+            errorCategory,
+            errorMessage: result.error,
+            responseTimeMs,
+          });
+
+          // Update analytics (for web app)
+          updateAnalytics({
+            operationType: 'readableText',
+            success: result.success,
+            errorCategory,
+          });
 
           // Send response
           sendResponse(result);
@@ -438,14 +540,67 @@ browser.runtime.onMessage.addListener(
           request.url
         );
 
-        // Handle async extraction
+        // Handle async extraction with timing
+        const startTime = Date.now();
         extractReadableHtml(request.url, request.requestId).then((result) => {
-          // Update statistics
-          updateStats(result.success, request.url);
+          const responseTimeMs = Date.now() - startTime;
+          const errorCategory = inferErrorCategory(result.error);
+
+          // Update detailed statistics (for popup)
+          updateStats({
+            operationType: 'readableHtml',
+            url: request.url,
+            success: result.success,
+            errorCategory,
+            errorMessage: result.error,
+            responseTimeMs,
+          });
+
+          // Update analytics (for web app)
+          updateAnalytics({
+            operationType: 'readableHtml',
+            success: result.success,
+            errorCategory,
+          });
 
           // Send response
           sendResponse(result);
         });
+
+        // Return true to indicate async response
+        return true;
+      }
+
+      // Handle analytics request from web app
+      if (message.type === 'GET_ANALYTICS') {
+        const request = message as GetAnalyticsRequest;
+
+        console.log(
+          '[Service Worker] Received analytics request:',
+          request.requestId
+        );
+
+        // Handle async analytics fetch
+        getAnalyticsSummary()
+          .then((summary) => {
+            const response: GetAnalyticsResponse = {
+              type: 'ANALYTICS_RESPONSE',
+              requestId: request.requestId,
+              success: true,
+              data: summary,
+            };
+            sendResponse(response);
+          })
+          .catch((error) => {
+            console.error('[Service Worker] Failed to get analytics:', error);
+            const response: GetAnalyticsResponse = {
+              type: 'ANALYTICS_RESPONSE',
+              requestId: request.requestId,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            };
+            sendResponse(response);
+          });
 
         // Return true to indicate async response
         return true;

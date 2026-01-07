@@ -274,10 +274,57 @@ export type ExtensionMessage =
   | DiscoverFeedsRequest
   | DiscoverFeedsResponse
   | TestBlogStatusRequest
-  | TestBlogStatusResponse;
+  | TestBlogStatusResponse
+  | GetAnalyticsRequest
+  | GetAnalyticsResponse;
 
 // Statistics tracking
+
+/** Types of operations tracked in statistics */
+export type OperationType = 'feedFetch' | 'pageFetch' | 'readableText' | 'readableHtml';
+
+/** Error categories for granular tracking */
+export type ErrorCategory = 'network' | 'timeout' | 'server' | 'client' | 'validation';
+
+/** Statistics for a single operation type */
+export interface OperationStats {
+  total: number;
+  success: number;
+  errors: number;
+  /** Breakdown of errors by category */
+  errorsByCategory: Record<ErrorCategory, number>;
+  /** Last operation details */
+  lastOperation?: {
+    url: string;
+    timestamp: number;
+    success: boolean;
+    errorCategory?: ErrorCategory;
+    errorMessage?: string;
+    /** Response time in milliseconds */
+    responseTimeMs?: number;
+  };
+  /** Average response time in milliseconds (rolling average of last 100) */
+  avgResponseTimeMs?: number;
+  /** Running sum for avg calculation */
+  _responseTimeSum?: number;
+  /** Count for avg calculation */
+  _responseTimeCount?: number;
+}
+
+/** Complete statistics structure with per-operation tracking */
 export interface FetchStats {
+  /** Version for migration support */
+  version: 2;
+  /** Per-operation-type statistics */
+  operations: Record<OperationType, OperationStats>;
+  /** When stats were first tracked */
+  startedAt: number;
+  /** When stats were last updated */
+  lastUpdatedAt: number;
+}
+
+/** Legacy stats structure for migration */
+export interface LegacyFetchStats {
   totalFetches: number;
   errors: number;
   lastFetch?: {
@@ -285,6 +332,107 @@ export interface FetchStats {
     timestamp: number;
     success: boolean;
   };
+}
+
+// ============================================
+// Analytics (for web app reporting)
+// ============================================
+
+/** Daily operation counts for a single operation type */
+export interface DailyOperationCounts {
+  total: number;
+  success: number;
+  errors: number;
+}
+
+/** Stats for a single day */
+export interface DailyStats {
+  /** Date in YYYY-MM-DD format */
+  date: string;
+  /** Per-operation counts */
+  operations: Record<OperationType, DailyOperationCounts>;
+  /** Total errors by category for the day */
+  errorsByCategory: Record<ErrorCategory, number>;
+}
+
+/** Analytics data structure for web app reporting */
+export interface AnalyticsData {
+  /** Version for future migration */
+  version: 1;
+
+  /** Rolling daily stats (last 30 days) */
+  dailyStats: DailyStats[];
+
+  /** Lifetime aggregate stats */
+  lifetime: {
+    /** First use timestamp (ms) */
+    firstUseAt: number;
+    /** Number of unique days with activity */
+    daysActive: number;
+    /** Per-operation lifetime totals */
+    operations: Record<OperationType, DailyOperationCounts>;
+    /** Lifetime errors by category */
+    errorsByCategory: Record<ErrorCategory, number>;
+  };
+
+  /** Last updated timestamp */
+  lastUpdatedAt: number;
+}
+
+/** Summary stats returned to web app */
+export interface AnalyticsSummary {
+  /** Extension version */
+  extensionVersion: string;
+
+  /** Last 7 days summary */
+  last7Days: {
+    totalOperations: number;
+    successRate: number;
+    operationBreakdown: Record<OperationType, number>;
+    errorsByCategory: Record<ErrorCategory, number>;
+    daysActive: number;
+  };
+
+  /** Last 30 days summary */
+  last30Days: {
+    totalOperations: number;
+    successRate: number;
+    operationBreakdown: Record<OperationType, number>;
+    errorsByCategory: Record<ErrorCategory, number>;
+    daysActive: number;
+  };
+
+  /** Lifetime summary */
+  lifetime: {
+    firstUseAt: number;
+    daysActive: number;
+    totalOperations: number;
+    successRate: number;
+    operationBreakdown: Record<OperationType, number>;
+  };
+
+  /** Today's stats */
+  today: {
+    totalOperations: number;
+    successCount: number;
+    errorCount: number;
+    operationBreakdown: Record<OperationType, number>;
+  };
+}
+
+/** Message from web app to extension - Request analytics */
+export interface GetAnalyticsRequest {
+  type: 'GET_ANALYTICS';
+  requestId: string;
+}
+
+/** Message from extension to web app - Analytics response */
+export interface GetAnalyticsResponse {
+  type: 'ANALYTICS_RESPONSE';
+  requestId: string;
+  success: boolean;
+  data?: AnalyticsSummary;
+  error?: string;
 }
 
 // ============================================

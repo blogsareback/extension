@@ -1,7 +1,8 @@
 import React from 'react';
 import browser from '../utils/browser';
-import type { FetchStats } from '../utils/types';
+import type { FetchStats, LegacyFetchStats } from '../utils/types';
 import { STORAGE_KEY_STATS } from '../utils/constants';
+import { createEmptyStats } from '@/background/storage/stats';
 import { ThemeProvider } from '@/components/theme-provier';
 import ThemeToggle from '@/components/theme-toggle';
 import { Separator } from '@/components/ui/separator';
@@ -20,6 +21,30 @@ import { CustomBlogUpdatesSection } from './components/CustomBlogUpdatesSection'
 import { ModeSelector } from './components/ModeSelector';
 import { StatsSection } from './components/StatsSection';
 import { EXTENSION_VERSION } from '@/utils/constants';
+
+/** Check if stats object is legacy format */
+function isLegacyStats(stats: unknown): stats is LegacyFetchStats {
+  if (!stats || typeof stats !== 'object') return false;
+  const obj = stats as Record<string, unknown>;
+  return 'totalFetches' in obj && !('version' in obj);
+}
+
+/** Migrate legacy stats to new format in popup context */
+function migrateLegacyStatsInPopup(legacy: LegacyFetchStats): FetchStats {
+  const stats = createEmptyStats();
+  stats.operations.feedFetch.total = legacy.totalFetches;
+  stats.operations.feedFetch.success = legacy.totalFetches - legacy.errors;
+  stats.operations.feedFetch.errors = legacy.errors;
+  stats.operations.feedFetch.errorsByCategory.network = legacy.errors;
+  if (legacy.lastFetch) {
+    stats.operations.feedFetch.lastOperation = {
+      url: legacy.lastFetch.url,
+      timestamp: legacy.lastFetch.timestamp,
+      success: legacy.lastFetch.success,
+    };
+  }
+  return stats;
+}
 
 export default function Popup() {
   const {
@@ -46,18 +71,27 @@ export default function Popup() {
     loading: settingsLoading,
     updateSettings,
   } = useSettings();
-  const [stats, setStats] = React.useState<FetchStats>({
-    totalFetches: 0,
-    errors: 0,
-  });
+  const [stats, setStats] = React.useState<FetchStats>(createEmptyStats);
 
   const isFeaturedMode = settings.extensionMode === 'featured';
 
   React.useEffect(() => {
-    // Load stats from browser.storage
+    // Load stats from browser.storage with migration support
     browser.storage.local.get([STORAGE_KEY_STATS]).then((result) => {
-      if (result[STORAGE_KEY_STATS]) {
-        setStats(result[STORAGE_KEY_STATS] as FetchStats);
+      const stored = result[STORAGE_KEY_STATS];
+      if (!stored) {
+        setStats(createEmptyStats());
+        return;
+      }
+
+      // Handle legacy format migration
+      if (isLegacyStats(stored)) {
+        const migrated = migrateLegacyStatsInPopup(stored);
+        setStats(migrated);
+        // Also save migrated version back to storage
+        browser.storage.local.set({ [STORAGE_KEY_STATS]: migrated });
+      } else {
+        setStats(stored as FetchStats);
       }
     });
   }, []);

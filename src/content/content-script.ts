@@ -16,6 +16,8 @@ import type {
   DiscoverFeedsResponse,
   TestBlogStatusRequest,
   TestBlogStatusResponse,
+  GetAnalyticsRequest,
+  GetAnalyticsResponse,
 } from '../utils/types';
 // Version injected at build time from package.json (see vite.config.ts)
 const EXTENSION_VERSION = __EXTENSION_VERSION__;
@@ -322,6 +324,45 @@ window.addEventListener('message', (event: MessageEvent) => {
             success: false,
             error: 'Extension context invalid. Please reload the page.',
           } as TestBlogStatusResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle analytics requests from web app
+  if (message.type === 'GET_ANALYTICS') {
+    const request = message as GetAnalyticsRequest;
+
+    console.log(
+      '[Content Script] Received analytics request from web app:',
+      request.requestId
+    );
+
+    // Forward request to service worker (Promise-based API)
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as GetAnalyticsResponse;
+        console.log(
+          '[Content Script] Received analytics response from service worker:',
+          response.requestId,
+          response.success
+        );
+
+        // Forward response back to web app
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        console.error('[Content Script] Extension context invalid:', error);
+
+        // Send error response back to web app
+        window.postMessage(
+          {
+            type: 'ANALYTICS_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            error: 'Extension context invalid. Please reload the page.',
+          } as GetAnalyticsResponse,
           window.location.origin
         );
       });

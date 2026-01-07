@@ -24,6 +24,10 @@ export const STORAGE_KEY_SETTINGS = 'settings';
 export const STORAGE_KEY_CUSTOM_BLOGS = 'customBlogs';
 export const STORAGE_KEY_CUSTOM_BLOG_UPDATES = 'customBlogUpdates';
 export const STORAGE_KEY_DIRECTORY_BLOG_TITLES = 'directoryBlogTitles'; // ID -> title mapping
+export const STORAGE_KEY_ANALYTICS = 'analytics'; // Daily/aggregate stats for web app
+
+// Analytics configuration
+export const ANALYTICS_MAX_DAILY_RECORDS = 30; // Keep 30 days of daily stats
 
 // Dashboard URL for opening blog in new tab
 export const DASHBOARD_BASE_URL = 'https://www.blogsareback.com/dashboard';
