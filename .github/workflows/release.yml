@@ -108,7 +108,7 @@ jobs:
             5. Select any file from the extracted folder
 
             ---
-            _For permanent Firefox installation, the extension must be installed from [Firefox Add-ons](https://addons.mozilla.org/)._
+            _For permanent Firefox installation, the extension must be installed from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/blogs-are-back/)._
           files: |
             blogs-are-back-chrome-${{ steps.version.outputs.number }}.zip
             blogs-are-back-firefox-${{ steps.version.outputs.number }}.zip
