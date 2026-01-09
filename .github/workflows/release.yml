@@ -1,0 +1,117 @@
+name: Release Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.3.0). Leave empty to use package.json version.'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            # Strip 'v' prefix if present for comparison
+            VERSION_NUM="${VERSION#v}"
+          else
+            VERSION_NUM=$(node -p "require('./package.json').version")
+            VERSION="v${VERSION_NUM}"
+          fi
+          echo "tag=${VERSION}" >> $GITHUB_OUTPUT
+          echo "number=${VERSION_NUM}" >> $GITHUB_OUTPUT
+          echo "Using version: ${VERSION}"
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Build Chrome extension
+        run: npm run build:chrome
+
+      - name: Build Firefox extension
+        run: npm run build:firefox
+
+      - name: Package Chrome extension
+        run: |
+          cd dist/chrome
+          zip -r ../../blogs-are-back-chrome-${{ steps.version.outputs.number }}.zip .
+
+      - name: Package Firefox extension
+        run: |
+          cd dist/firefox
+          zip -r ../../blogs-are-back-firefox-${{ steps.version.outputs.number }}.zip .
+
+      - name: Upload Chrome artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: blogs-are-back-chrome-${{ steps.version.outputs.number }}.zip
+
+      - name: Upload Firefox artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-extension
+          path: blogs-are-back-firefox-${{ steps.version.outputs.number }}.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Blogs Are Back ${{ steps.version.outputs.tag }}
+          body: |
+            ## Downloads
+
+            | Browser | File |
+            |---------|------|
+            | Chrome | `blogs-are-back-chrome-${{ steps.version.outputs.number }}.zip` |
+            | Firefox | `blogs-are-back-firefox-${{ steps.version.outputs.number }}.zip` |
+
+            ## Installation
+
+            ### Chrome
+            1. Download the Chrome zip file
+            2. Extract the zip to a folder
+            3. Go to `chrome://extensions/`
+            4. Enable "Developer mode" (toggle in top right)
+            5. Click "Load unpacked" and select the extracted folder
+
+            ### Firefox
+            1. Download the Firefox zip file
+            2. Extract the zip to a folder
+            3. Go to `about:debugging#/runtime/this-firefox`
+            4. Click "Load Temporary Add-on"
+            5. Select any file from the extracted folder
+
+            ---
+            _For permanent Firefox installation, the extension must be installed from [Firefox Add-ons](https://addons.mozilla.org/)._
+          files: |
+            blogs-are-back-chrome-${{ steps.version.outputs.number }}.zip
+            blogs-are-back-firefox-${{ steps.version.outputs.number }}.zip
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          generate_release_notes: true
