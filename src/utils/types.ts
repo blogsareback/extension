@@ -173,22 +173,43 @@ export interface DirectoryBlogSyncData {
   title: string; // Blog title for display
 }
 
-// Directory updates state (synced from web app)
-export interface DirectoryUpdatesState {
+/**
+ * Community blog data synced from web app (with title for display)
+ */
+export interface CommunityBlogSyncData {
+  id: string; // community_blog_id
+  title: string; // Blog title for display
+}
+
+/**
+ * Unified catalog source updates state
+ * Used for both directory and community blog update tracking
+ */
+export interface CatalogSourceUpdatesState {
   status: 'idle' | 'checking' | 'success' | 'error' | 'disabled';
   isEnabled: boolean;
   updatedCount: number; // Number of followed blogs with new posts
-  followedDirectoryCount: number; // Total directory blogs user follows
+  followedCount: number; // Total blogs user follows from this source
   totalBlogs: number | null; // Total blogs server monitors
   lastCheckedAt: number | null; // Timestamp (ms) when extension last checked API
   nextCheckAt: number | null; // Timestamp (ms) for next server check
   sinceTimestamp: number | null; // Timestamp (ms) used for checking
   error?: string;
-  // Sync tracking (new)
   syncStatus: SyncStatus; // Whether blogs have been synced from web app
   lastSyncAt: number | null; // Timestamp (ms) when blogs were last synced
-  // Updated blogs with titles (for display in popup)
-  updatedBlogs?: Array<{ id: string; title: string }>;
+  updatedBlogs?: Array<{ id: string; title: string }>; // For popup display
+}
+
+// Type aliases for backward compatibility
+export type DirectoryUpdatesState = CatalogSourceUpdatesState;
+export type CommunityUpdatesState = CatalogSourceUpdatesState;
+
+// Combined catalog updates state (for UI display)
+export interface CatalogUpdatesState {
+  directory: CatalogSourceUpdatesState | null;
+  community: CatalogSourceUpdatesState | null;
+  totalUpdatedCount: number;
+  totalFollowedCount: number;
 }
 
 // Message from web app to extension - Sync directory updates state
@@ -240,6 +261,52 @@ export interface ForceCheckDirectoryUpdatesResponse {
   error?: string;
 }
 
+// Message from popup to service worker - Get community updates state
+export interface GetCommunityUpdatesRequest {
+  type: 'GET_COMMUNITY_UPDATES';
+}
+
+// Message from service worker to popup - Community updates state response
+export interface GetCommunityUpdatesResponse {
+  type: 'COMMUNITY_UPDATES_RESPONSE';
+  state: CommunityUpdatesState | null;
+}
+
+// Message from popup to service worker - Force check for community updates
+export interface ForceCheckCommunityUpdatesRequest {
+  type: 'FORCE_CHECK_COMMUNITY_UPDATES';
+}
+
+// Message from service worker to popup - Force check response
+export interface ForceCheckCommunityUpdatesResponse {
+  type: 'FORCE_CHECK_COMMUNITY_UPDATES_RESPONSE';
+  success: boolean;
+  error?: string;
+}
+
+// Message from popup to service worker - Get combined catalog updates state
+export interface GetCatalogUpdatesRequest {
+  type: 'GET_CATALOG_UPDATES';
+}
+
+// Message from service worker to popup - Combined catalog updates state response
+export interface GetCatalogUpdatesResponse {
+  type: 'CATALOG_UPDATES_RESPONSE';
+  state: CatalogUpdatesState | null;
+}
+
+// Message from popup to service worker - Force check for all catalog updates
+export interface ForceCheckCatalogUpdatesRequest {
+  type: 'FORCE_CHECK_CATALOG_UPDATES';
+}
+
+// Message from service worker to popup - Force check response
+export interface ForceCheckCatalogUpdatesResponse {
+  type: 'FORCE_CHECK_CATALOG_UPDATES_RESPONSE';
+  success: boolean;
+  error?: string;
+}
+
 // Chrome extension message envelope
 export type ExtensionMessage =
   | FetchFeedRequest
@@ -267,6 +334,14 @@ export type ExtensionMessage =
   | GetDirectoryUpdatesResponse
   | ForceCheckDirectoryUpdatesRequest
   | ForceCheckDirectoryUpdatesResponse
+  | GetCommunityUpdatesRequest
+  | GetCommunityUpdatesResponse
+  | ForceCheckCommunityUpdatesRequest
+  | ForceCheckCommunityUpdatesResponse
+  | GetCatalogUpdatesRequest
+  | GetCatalogUpdatesResponse
+  | ForceCheckCatalogUpdatesRequest
+  | ForceCheckCatalogUpdatesResponse
   | GetCustomBlogUpdatesRequest
   | GetCustomBlogUpdatesResponse
   | ForceCheckCustomBlogUpdatesRequest
@@ -535,11 +610,12 @@ export interface CustomBlogUpdatesState {
 }
 
 /**
- * Message from web app to extension - Sync all blogs (directory + custom)
+ * Message from web app to extension - Sync all blogs (directory + community + custom)
  */
 export interface SyncAllBlogsRequest {
   type: 'SYNC_ALL_BLOGS';
   directoryBlogs: DirectoryBlogSyncData[] | string[]; // directory_blog_id values with titles (or legacy string[] for backward compat)
+  communityBlogs: CommunityBlogSyncData[]; // community_blog_id values with titles
   customBlogs: CustomBlogSyncData[];
   followedFeedUrls: string[]; // All followed feed URLs for duplicate detection
   lastVisit: number | null; // Timestamp (ms) of last visit

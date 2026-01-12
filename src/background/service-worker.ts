@@ -17,7 +17,12 @@ import { getSettings, updateSettings, clearData } from './storage/settings';
 import { updateStats, type UpdateStatsParams } from './storage/stats';
 import { updateAnalytics, getAnalyticsSummary } from './storage/analytics';
 import type { ErrorCategory } from '../utils/types';
-import { getDirectoryUpdatesState, getCustomBlogUpdatesState } from './storage/state';
+import {
+  getDirectoryUpdatesState,
+  getCommunityUpdatesState,
+  getCatalogUpdatesState,
+  getCustomBlogUpdatesState,
+} from './storage/state';
 
 // Handlers
 import { fetchFeed } from './handlers/feed-fetch';
@@ -30,6 +35,10 @@ import {
   forceCheckDirectoryUpdates,
   handleSyncFollowedBlogs,
 } from './handlers/directory-updates';
+import {
+  checkCommunityUpdatesFromAPI,
+  forceCheckCommunityUpdates,
+} from './handlers/community-updates';
 import {
   checkCustomBlogUpdates,
   forceCheckCustomBlogUpdates,
@@ -61,6 +70,10 @@ import type {
   GetSubscriptionQueueResponse,
   GetDirectoryUpdatesResponse,
   ForceCheckDirectoryUpdatesResponse,
+  GetCommunityUpdatesResponse,
+  ForceCheckCommunityUpdatesResponse,
+  GetCatalogUpdatesResponse,
+  ForceCheckCatalogUpdatesResponse,
   GetCustomBlogUpdatesResponse,
   ForceCheckCustomBlogUpdatesResponse,
   GetSettingsResponse,
@@ -158,6 +171,10 @@ type MessageResponse =
   | GetSubscriptionQueueResponse
   | GetDirectoryUpdatesResponse
   | ForceCheckDirectoryUpdatesResponse
+  | GetCommunityUpdatesResponse
+  | ForceCheckCommunityUpdatesResponse
+  | GetCatalogUpdatesResponse
+  | ForceCheckCatalogUpdatesResponse
   | GetCustomBlogUpdatesResponse
   | ForceCheckCustomBlogUpdatesResponse
   | GetSettingsResponse
@@ -295,6 +312,69 @@ browser.runtime.onMessage.addListener(
               success: false,
               error: error instanceof Error ? error.message : 'Unknown error',
             });
+          });
+        return true; // Async response
+      }
+
+      // Handle GET_COMMUNITY_UPDATES from popup
+      if (message.type === 'GET_COMMUNITY_UPDATES') {
+        getCommunityUpdatesState().then((state) => {
+          sendResponse({
+            type: 'COMMUNITY_UPDATES_RESPONSE',
+            state,
+          } as GetCommunityUpdatesResponse);
+        });
+        return true; // Async response
+      }
+
+      // Handle FORCE_CHECK_COMMUNITY_UPDATES from popup
+      if (message.type === 'FORCE_CHECK_COMMUNITY_UPDATES') {
+        forceCheckCommunityUpdates()
+          .then(() => {
+            sendResponse({
+              type: 'FORCE_CHECK_COMMUNITY_UPDATES_RESPONSE',
+              success: true,
+            } as ForceCheckCommunityUpdatesResponse);
+          })
+          .catch((error) => {
+            sendResponse({
+              type: 'FORCE_CHECK_COMMUNITY_UPDATES_RESPONSE',
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            } as ForceCheckCommunityUpdatesResponse);
+          });
+        return true; // Async response
+      }
+
+      // Handle GET_CATALOG_UPDATES from popup (combined directory + community)
+      if (message.type === 'GET_CATALOG_UPDATES') {
+        getCatalogUpdatesState().then((state) => {
+          sendResponse({
+            type: 'CATALOG_UPDATES_RESPONSE',
+            state,
+          } as GetCatalogUpdatesResponse);
+        });
+        return true; // Async response
+      }
+
+      // Handle FORCE_CHECK_CATALOG_UPDATES from popup (checks both directory + community)
+      if (message.type === 'FORCE_CHECK_CATALOG_UPDATES') {
+        Promise.all([
+          forceCheckDirectoryUpdates(),
+          forceCheckCommunityUpdates(),
+        ])
+          .then(() => {
+            sendResponse({
+              type: 'FORCE_CHECK_CATALOG_UPDATES_RESPONSE',
+              success: true,
+            } as ForceCheckCatalogUpdatesResponse);
+          })
+          .catch((error) => {
+            sendResponse({
+              type: 'FORCE_CHECK_CATALOG_UPDATES_RESPONSE',
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            } as ForceCheckCatalogUpdatesResponse);
           });
         return true; // Async response
       }
@@ -638,9 +718,12 @@ async function setupPeriodicCheckAlarm(): Promise<void> {
   }
 }
 
-// Check for directory updates on startup (if we have stored followed blogs)
-checkDirectoryUpdatesFromAPI().catch((error) => {
-  console.log('[Service Worker] Startup directory check failed:', error);
+// Check for catalog updates on startup (if we have stored followed blogs)
+Promise.all([
+  checkDirectoryUpdatesFromAPI(),
+  checkCommunityUpdatesFromAPI(),
+]).catch((error) => {
+  console.log('[Service Worker] Startup catalog check failed:', error);
 });
 
 // Set up periodic check alarm based on settings
@@ -650,9 +733,12 @@ setupPeriodicCheckAlarm().catch((error) => {
 
 browser.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === DIRECTORY_CHECK_ALARM) {
-    console.log('[Service Worker] Periodic directory updates check triggered');
-    checkDirectoryUpdatesFromAPI().catch((error) => {
-      console.log('[Service Worker] Periodic directory check failed:', error);
+    console.log('[Service Worker] Periodic catalog updates check triggered');
+    Promise.all([
+      checkDirectoryUpdatesFromAPI(),
+      checkCommunityUpdatesFromAPI(),
+    ]).catch((error) => {
+      console.log('[Service Worker] Periodic catalog check failed:', error);
     });
   }
 });

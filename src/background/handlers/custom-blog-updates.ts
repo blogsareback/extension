@@ -9,26 +9,31 @@ import {
   STORAGE_KEY_CUSTOM_BLOG_UPDATES,
   STORAGE_KEY_SETTINGS,
   STORAGE_KEY_FOLLOWED_BLOGS,
+  STORAGE_KEY_FOLLOWED_COMMUNITY_BLOGS,
   STORAGE_KEY_LAST_DIRECTORY_VISIT,
   STORAGE_KEY_DIRECTORY_UPDATES,
+  STORAGE_KEY_COMMUNITY_UPDATES,
   STORAGE_KEY_FOLLOWED_FEED_URLS,
   STORAGE_KEY_DIRECTORY_BLOG_TITLES,
+  STORAGE_KEY_COMMUNITY_BLOG_TITLES,
   CUSTOM_BLOG_CHECK_TIMEOUT,
   USER_AGENT,
 } from '../utils/constants';
 import { processBatchWithConcurrency } from '../utils/fetch';
 import { sendCustomBlogNotification } from '../utils/notifications';
 import { getSettings, isFeatureMode, DEFAULT_SETTINGS } from '../storage/settings';
-import { getDirectoryUpdatesState, getCustomBlogUpdatesState, updateDirectoryBadge } from '../storage/state';
+import { getDirectoryUpdatesState, getCommunityUpdatesState, getCustomBlogUpdatesState, updateCatalogBadge } from '../storage/state';
 import { checkDirectoryUpdatesFromAPI } from './directory-updates';
+import { checkCommunityUpdatesFromAPI } from './community-updates';
 import type {
   CustomBlogUpdatesState,
   CustomBlogState,
   CustomBlogSyncData,
   DirectoryBlogSyncData,
+  CommunityBlogSyncData,
   ExtensionSettings,
   SyncAllBlogsRequest,
-  DirectoryUpdatesState,
+  CatalogSourceUpdatesState,
 } from '../../utils/types';
 
 /**
@@ -206,10 +211,11 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
       [STORAGE_KEY_CUSTOM_BLOG_UPDATES]: newState,
     });
 
-    // Update badge (combine with directory updates count)
+    // Update badge (combine with directory + community updates count)
     const dirState = await getDirectoryUpdatesState();
-    const totalUpdates = updatedCount + (dirState?.updatedCount ?? 0);
-    await updateDirectoryBadge(totalUpdates);
+    const commState = await getCommunityUpdatesState();
+    const totalUpdates = updatedCount + (dirState?.updatedCount ?? 0) + (commState?.updatedCount ?? 0);
+    await updateCatalogBadge(totalUpdates);
 
     // Send notification if there are new updates and not silent
     if (!silent && updatedCount > 0 && settings.notificationsEnabled && settings.customBlogNotificationsEnabled) {
@@ -247,48 +253,68 @@ export async function forceCheckCustomBlogUpdates(): Promise<void> {
 
 /**
  * Handle the new SYNC_ALL_BLOGS message from web app
- * This syncs both directory and custom blogs
+ * This syncs directory, community, and custom blogs (the full catalog)
  */
 export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<void> {
   try {
-    const { directoryBlogs, customBlogs, followedFeedUrls, lastVisit } = message;
+    const { directoryBlogs, communityBlogs, customBlogs, followedFeedUrls, lastVisit } = message;
     const now = Date.now();
     const isFeatured = await isFeatureMode();
 
     // Handle both old format (string[]) and new format (DirectoryBlogSyncData[])
     // This ensures backward compatibility with older web app versions
-    let blogIds: string[];
-    let blogTitles: Record<string, string> = {};
+    let directoryBlogIds: string[];
+    let directoryBlogTitles: Record<string, string> = {};
 
     if (directoryBlogs.length > 0 && typeof directoryBlogs[0] === 'string') {
       // Old format: just IDs (no titles available)
-      blogIds = directoryBlogs as unknown as string[];
+      directoryBlogIds = directoryBlogs as unknown as string[];
     } else {
       // New format: objects with id and title
       const typedBlogs = directoryBlogs as DirectoryBlogSyncData[];
-      blogIds = typedBlogs.map(b => b.id);
+      directoryBlogIds = typedBlogs.map(b => b.id);
       for (const blog of typedBlogs) {
-        blogTitles[blog.id] = blog.title;
+        directoryBlogTitles[blog.id] = blog.title;
       }
     }
 
+    // Process community blogs (always new format)
+    const communityBlogList = communityBlogs ?? [];
+    const communityBlogIds: string[] = communityBlogList.map(b => b.id);
+    const communityBlogTitles: Record<string, string> = {};
+    for (const blog of communityBlogList) {
+      communityBlogTitles[blog.id] = blog.title;
+    }
+
     console.log('[Service Worker] Syncing all blogs:', {
-      directoryCount: blogIds.length,
+      directoryCount: directoryBlogIds.length,
+      communityCount: communityBlogIds.length,
       customCount: customBlogs.length,
       feedUrlCount: followedFeedUrls?.length ?? 0,
       lastVisit: lastVisit ? new Date(lastVisit).toISOString() : null,
       mode: isFeatured ? 'featured' : 'basic',
-      hasBlogTitles: Object.keys(blogTitles).length > 0,
+      hasDirectoryTitles: Object.keys(directoryBlogTitles).length > 0,
+      hasCommunityTitles: Object.keys(communityBlogTitles).length > 0,
     });
 
     // Store directory blog IDs
     await browser.storage.local.set({
-      [STORAGE_KEY_FOLLOWED_BLOGS]: blogIds,
+      [STORAGE_KEY_FOLLOWED_BLOGS]: directoryBlogIds,
     });
 
     // Store directory blog titles (ID -> title mapping)
     await browser.storage.local.set({
-      [STORAGE_KEY_DIRECTORY_BLOG_TITLES]: blogTitles,
+      [STORAGE_KEY_DIRECTORY_BLOG_TITLES]: directoryBlogTitles,
+    });
+
+    // Store community blog IDs
+    await browser.storage.local.set({
+      [STORAGE_KEY_FOLLOWED_COMMUNITY_BLOGS]: communityBlogIds,
+    });
+
+    // Store community blog titles (ID -> title mapping)
+    await browser.storage.local.set({
+      [STORAGE_KEY_COMMUNITY_BLOG_TITLES]: communityBlogTitles,
     });
 
     // Store custom blogs
@@ -315,20 +341,37 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
       console.log('[Service Worker] Basic mode - skipping update checks');
 
       // Update directory state to show disabled
-      const basicDirState: DirectoryUpdatesState = {
+      const basicDirState: CatalogSourceUpdatesState = {
         status: 'idle',
         isEnabled: false,
         updatedCount: 0,
-        followedDirectoryCount: blogIds.length,
+        followedCount: directoryBlogIds.length,
         totalBlogs: null,
         lastCheckedAt: null,
         nextCheckAt: null,
         sinceTimestamp: lastVisit,
-        syncStatus: blogIds.length > 0 ? 'synced' : 'synced_empty',
+        syncStatus: directoryBlogIds.length > 0 ? 'synced' : 'synced_empty',
         lastSyncAt: now,
       };
       await browser.storage.local.set({
         [STORAGE_KEY_DIRECTORY_UPDATES]: basicDirState,
+      });
+
+      // Update community state to show disabled
+      const basicCommState: CatalogSourceUpdatesState = {
+        status: 'idle',
+        isEnabled: false,
+        updatedCount: 0,
+        followedCount: communityBlogIds.length,
+        totalBlogs: null,
+        lastCheckedAt: null,
+        nextCheckAt: null,
+        sinceTimestamp: lastVisit,
+        syncStatus: communityBlogIds.length > 0 ? 'synced' : 'synced_empty',
+        lastSyncAt: now,
+      };
+      await browser.storage.local.set({
+        [STORAGE_KEY_COMMUNITY_UPDATES]: basicCommState,
       });
 
       // Update custom blog state to show disabled
@@ -345,19 +388,19 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
       });
 
       // Clear any existing badge in basic mode
-      await updateDirectoryBadge(0);
+      await updateCatalogBadge(0);
       return;
     }
 
     // Featured mode: proceed with update checking
 
-    // Handle directory blogs (same logic as handleSyncFollowedBlogs)
-    if (blogIds.length === 0) {
-      const emptyDirState: DirectoryUpdatesState = {
+    // Handle directory blogs
+    if (directoryBlogIds.length === 0) {
+      const emptyDirState: CatalogSourceUpdatesState = {
         status: 'success',
         isEnabled: true,
         updatedCount: 0,
-        followedDirectoryCount: 0,
+        followedCount: 0,
         totalBlogs: null,
         lastCheckedAt: now,
         nextCheckAt: null,
@@ -371,11 +414,11 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
     } else {
       // Check directory updates
       const currentDirState = await getDirectoryUpdatesState();
-      const checkingDirState: DirectoryUpdatesState = {
+      const checkingDirState: CatalogSourceUpdatesState = {
         status: 'checking',
         isEnabled: true,
         updatedCount: currentDirState?.updatedCount ?? 0,
-        followedDirectoryCount: blogIds.length,
+        followedCount: directoryBlogIds.length,
         totalBlogs: currentDirState?.totalBlogs ?? null,
         lastCheckedAt: currentDirState?.lastCheckedAt ?? null,
         nextCheckAt: currentDirState?.nextCheckAt ?? null,
@@ -390,6 +433,48 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
       // Check directory updates (don't await - let it run in background)
       checkDirectoryUpdatesFromAPI({ skipCache: true, silent: true }).catch((error) => {
         console.error('[Service Worker] Directory updates check failed:', error);
+      });
+    }
+
+    // Handle community blogs
+    if (communityBlogIds.length === 0) {
+      const emptyCommState: CatalogSourceUpdatesState = {
+        status: 'success',
+        isEnabled: true,
+        updatedCount: 0,
+        followedCount: 0,
+        totalBlogs: null,
+        lastCheckedAt: now,
+        nextCheckAt: null,
+        sinceTimestamp: lastVisit,
+        syncStatus: 'synced_empty',
+        lastSyncAt: now,
+      };
+      await browser.storage.local.set({
+        [STORAGE_KEY_COMMUNITY_UPDATES]: emptyCommState,
+      });
+    } else {
+      // Check community updates
+      const currentCommState = await getCommunityUpdatesState();
+      const checkingCommState: CatalogSourceUpdatesState = {
+        status: 'checking',
+        isEnabled: true,
+        updatedCount: currentCommState?.updatedCount ?? 0,
+        followedCount: communityBlogIds.length,
+        totalBlogs: currentCommState?.totalBlogs ?? null,
+        lastCheckedAt: currentCommState?.lastCheckedAt ?? null,
+        nextCheckAt: currentCommState?.nextCheckAt ?? null,
+        sinceTimestamp: lastVisit,
+        syncStatus: 'synced',
+        lastSyncAt: now,
+      };
+      await browser.storage.local.set({
+        [STORAGE_KEY_COMMUNITY_UPDATES]: checkingCommState,
+      });
+
+      // Check community updates (don't await - let it run in background)
+      checkCommunityUpdatesFromAPI({ skipCache: true, silent: true }).catch((error) => {
+        console.error('[Service Worker] Community updates check failed:', error);
       });
     }
 

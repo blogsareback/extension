@@ -10,7 +10,7 @@ interface BlogInfo {
 interface BlogTitleListProps {
   blogs: BlogInfo[];
   maxDisplay?: number;
-  type: 'directory' | 'custom';
+  type: 'directory' | 'community' | 'catalog' | 'custom';
 }
 
 export function BlogTitleList({

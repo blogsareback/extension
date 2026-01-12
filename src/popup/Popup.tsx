@@ -11,12 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Settings } from 'lucide-react';
 import { useDiscoveredFeeds } from './hooks/useDiscoveredFeeds';
 import { useSubscriptionQueue } from './hooks/useSubscriptionQueue';
-import { useDirectoryUpdates } from './hooks/useDirectoryUpdates';
+import { useCatalogUpdates } from './hooks/useCatalogUpdates';
 import { useCustomBlogUpdates } from './hooks/useCustomBlogUpdates';
 import { useSettings } from './hooks/useSettings';
 import { FeedList } from './components/FeedList';
 import { QueueSummary } from './components/QueueSummary';
-import { DirectoryUpdatesSection } from './components/DirectoryUpdatesSection';
+import { CatalogUpdatesSection } from './components/CatalogUpdatesSection';
 import { CustomBlogUpdatesSection } from './components/CustomBlogUpdatesSection';
 import { ModeSelector } from './components/ModeSelector';
 import { StatsSection } from './components/StatsSection';
@@ -55,11 +55,14 @@ export default function Popup() {
   } = useDiscoveredFeeds();
   const { queue, loading: queueLoading } = useSubscriptionQueue();
   const {
-    state: directoryState,
-    loading: directoryLoading,
-    forceCheck: refreshDirectoryUpdates,
-    isRefreshing: isDirectoryRefreshing,
-  } = useDirectoryUpdates();
+    directoryState,
+    communityState,
+    totalUpdatedCount,
+    totalFollowedCount,
+    loading: catalogLoading,
+    forceCheck: refreshCatalogUpdates,
+    isRefreshing: isCatalogRefreshing,
+  } = useCatalogUpdates();
   const {
     state: customBlogState,
     loading: customBlogLoading,
@@ -158,13 +161,16 @@ export default function Popup() {
         {/* Blog Updates Sections (Featured Mode Only) */}
         {isFeaturedMode && (
           <>
-            {/* Directory Updates Section */}
+            {/* Catalog Updates Section (Directory + Community) */}
             <section className="my-4">
-              <DirectoryUpdatesSection
-                state={directoryState}
-                loading={directoryLoading}
-                onRefresh={refreshDirectoryUpdates}
-                isRefreshing={isDirectoryRefreshing}
+              <CatalogUpdatesSection
+                directoryState={directoryState}
+                communityState={communityState}
+                totalUpdatedCount={totalUpdatedCount}
+                totalFollowedCount={totalFollowedCount}
+                loading={catalogLoading}
+                onRefresh={refreshCatalogUpdates}
+                isRefreshing={isCatalogRefreshing}
               />
             </section>
 

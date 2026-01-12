@@ -17,13 +17,16 @@ export const MAX_CONCURRENT_CUSTOM_CHECKS = 10; // Max feeds to check in paralle
 export const STORAGE_KEY_STATS = 'stats';
 export const STORAGE_KEY_SUBSCRIPTION_QUEUE = 'subscriptionQueue';
 export const STORAGE_KEY_DIRECTORY_UPDATES = 'directoryUpdates';
+export const STORAGE_KEY_COMMUNITY_UPDATES = 'communityUpdates';
 export const STORAGE_KEY_FOLLOWED_BLOGS = 'followedBlogs';
+export const STORAGE_KEY_FOLLOWED_COMMUNITY_BLOGS = 'followedCommunityBlogs';
 export const STORAGE_KEY_FOLLOWED_FEED_URLS = 'followedFeedUrls';
 export const STORAGE_KEY_LAST_DIRECTORY_VISIT = 'lastDirectoryVisit';
 export const STORAGE_KEY_SETTINGS = 'settings';
 export const STORAGE_KEY_CUSTOM_BLOGS = 'customBlogs';
 export const STORAGE_KEY_CUSTOM_BLOG_UPDATES = 'customBlogUpdates';
 export const STORAGE_KEY_DIRECTORY_BLOG_TITLES = 'directoryBlogTitles'; // ID -> title mapping
+export const STORAGE_KEY_COMMUNITY_BLOG_TITLES = 'communityBlogTitles'; // ID -> title mapping
 export const STORAGE_KEY_ANALYTICS = 'analytics'; // Daily/aggregate stats for web app
 
 // Analytics configuration
@@ -34,16 +37,21 @@ export const DASHBOARD_BASE_URL = 'https://www.blogsareback.com/dashboard';
 
 // API endpoints
 export const DIRECTORY_UPDATES_API = 'https://www.blogsareback.com/api/directory/updates';
+export const COMMUNITY_UPDATES_API = 'https://www.blogsareback.com/api/community/updates';
 
-// Cache TTL for directory updates (5 minutes, matches server CDN cache)
-export const DIRECTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+// Cache TTL for catalog updates (5 minutes, matches server CDN cache)
+export const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+// Backwards compatibility
+export const DIRECTORY_CACHE_TTL_MS = CATALOG_CACHE_TTL_MS;
 
 // Badge colors
-export const DIRECTORY_BADGE_COLOR = '#ef4444'; // Red for directory updates
+export const CATALOG_BADGE_COLOR = '#ef4444'; // Red for catalog updates
+export const DIRECTORY_BADGE_COLOR = CATALOG_BADGE_COLOR; // Backwards compatibility
 export const FEED_DISCOVERY_BADGE_COLOR = '#3b82f6'; // Blue for feed discovery
 
 // Alarm names
-export const DIRECTORY_CHECK_ALARM = 'directory-updates-check';
+export const CATALOG_CHECK_ALARM = 'catalog-updates-check';
+export const DIRECTORY_CHECK_ALARM = CATALOG_CHECK_ALARM; // Backwards compatibility
 
 // Common feed paths to try when no feed links found in HTML
 export const COMMON_FEED_PATHS = [
