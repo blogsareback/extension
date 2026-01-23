@@ -17,12 +17,14 @@ import {
   STORAGE_KEY_DIRECTORY_BLOG_TITLES,
   STORAGE_KEY_COMMUNITY_BLOG_TITLES,
   CUSTOM_BLOG_CHECK_TIMEOUT,
+  HEAD_REQUEST_TIMEOUT,
   USER_AGENT,
 } from '../utils/constants';
 import { processBatchWithConcurrency } from '../utils/fetch';
 import { sendCustomBlogNotification } from '../utils/notifications';
 import { getSettings, isFeatureMode, DEFAULT_SETTINGS } from '../storage/settings';
 import { getDirectoryUpdatesState, getCommunityUpdatesState, getCustomBlogUpdatesState, updateCatalogBadge } from '../storage/state';
+import { setFeedCache } from '../storage/feed-cache';
 import { checkDirectoryUpdatesFromAPI } from './directory-updates';
 import { checkCommunityUpdatesFromAPI } from './community-updates';
 import type {
@@ -37,13 +39,127 @@ import type {
 } from '../../utils/types';
 
 /**
+ * Storage for Last-Modified values from previous checks
+ * Key: feedUrl, Value: Last-Modified timestamp in ms
+ */
+const STORAGE_KEY_FEED_LAST_MODIFIED = 'feedLastModified';
+
+/**
+ * Check if a feed has been modified using a HEAD request
+ * This is much faster than fetching the full feed
+ *
+ * @param feedUrl - The URL of the feed to check
+ * @param lastKnownModified - The last known modification time (ms)
+ * @returns true if modified (or unknown), false if definitely not modified
+ */
+async function checkFeedModifiedViaHead(
+  feedUrl: string,
+  lastKnownModified: number | null
+): Promise<{ modified: boolean; newLastModified: number | null }> {
+  if (!lastKnownModified) {
+    // No baseline to compare - must fetch
+    return { modified: true, newLastModified: null };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HEAD_REQUEST_TIMEOUT);
+
+    const response = await fetch(feedUrl, {
+      method: 'HEAD',
+      headers: { 'User-Agent': USER_AGENT },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      // Can't determine, assume modified
+      return { modified: true, newLastModified: null };
+    }
+
+    const lastModifiedHeader = response.headers.get('Last-Modified');
+    if (!lastModifiedHeader) {
+      // Server doesn't support Last-Modified, assume modified
+      return { modified: true, newLastModified: null };
+    }
+
+    const serverTime = new Date(lastModifiedHeader).getTime();
+    if (isNaN(serverTime)) {
+      return { modified: true, newLastModified: null };
+    }
+
+    // Compare with last known modification time
+    const modified = serverTime > lastKnownModified;
+
+    console.log(
+      `[Service Worker] HEAD check for ${feedUrl}: ` +
+      `server=${new Date(serverTime).toISOString()}, ` +
+      `known=${new Date(lastKnownModified).toISOString()}, ` +
+      `modified=${modified}`
+    );
+
+    return { modified, newLastModified: serverTime };
+  } catch (error) {
+    // HEAD failed, fall back to full fetch
+    console.warn(`[Service Worker] HEAD request failed for ${feedUrl}:`, error);
+    return { modified: true, newLastModified: null };
+  }
+}
+
+/**
+ * Get stored Last-Modified timestamps for feeds
+ */
+async function getStoredLastModified(): Promise<Record<string, number>> {
+  try {
+    const result = await browser.storage.local.get(STORAGE_KEY_FEED_LAST_MODIFIED);
+    return (result[STORAGE_KEY_FEED_LAST_MODIFIED] as Record<string, number>) || {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Store Last-Modified timestamp for a feed
+ */
+async function storeLastModified(feedUrl: string, timestamp: number): Promise<void> {
+  try {
+    const stored = await getStoredLastModified();
+    stored[feedUrl] = timestamp;
+    await browser.storage.local.set({ [STORAGE_KEY_FEED_LAST_MODIFIED]: stored });
+  } catch (error) {
+    console.warn('[Service Worker] Failed to store Last-Modified:', error);
+  }
+}
+
+/**
+ * Options for fetching newest post date
+ */
+interface FetchNewestPostDateOptions {
+  /** Timeout in milliseconds (defaults to CUSTOM_BLOG_CHECK_TIMEOUT) */
+  timeoutMs?: number;
+  /** Cache the feed content for later use */
+  cacheContent?: boolean;
+}
+
+/**
  * Fetch the newest post date from a feed
  * Returns timestamp in ms, or null if unable to determine
+ *
+ * Optimization: Uses HEAD request first to check Last-Modified header.
+ * Only fetches full feed if HEAD indicates modification or is unavailable.
+ *
  * @param feedUrl - The URL of the feed to check
- * @param timeoutMs - Timeout in milliseconds (defaults to CUSTOM_BLOG_CHECK_TIMEOUT)
+ * @param lastKnownPostDate - The last known post date from web app (ms)
+ * @param options - Optional configuration
  */
-async function fetchNewestPostDate(feedUrl: string, timeoutMs?: number): Promise<number | null> {
-  const timeout = timeoutMs ?? CUSTOM_BLOG_CHECK_TIMEOUT;
+async function fetchNewestPostDate(
+  feedUrl: string,
+  lastKnownPostDate: number | null,
+  options?: FetchNewestPostDateOptions
+): Promise<number | null> {
+  const timeout = options?.timeoutMs ?? CUSTOM_BLOG_CHECK_TIMEOUT;
+  const cacheContent = options?.cacheContent ?? false;
 
   try {
     // Validate URL
@@ -52,7 +168,19 @@ async function fetchNewestPostDate(feedUrl: string, timeoutMs?: number): Promise
       return null;
     }
 
-    // Fetch with timeout
+    // Try HEAD request first to check if feed has been modified
+    const storedModified = await getStoredLastModified();
+    const lastKnownModified = storedModified[feedUrl] || null;
+
+    const headCheck = await checkFeedModifiedViaHead(feedUrl, lastKnownModified);
+
+    if (!headCheck.modified && lastKnownPostDate !== null) {
+      // Feed not modified according to HEAD - return existing date
+      console.log(`[Service Worker] Feed not modified (HEAD), skipping full fetch: ${feedUrl}`);
+      return lastKnownPostDate;
+    }
+
+    // Fetch full feed
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -69,7 +197,32 @@ async function fetchNewestPostDate(feedUrl: string, timeoutMs?: number): Promise
         return null;
       }
 
+      // Get headers for caching
+      const lastModifiedHeader = response.headers.get('Last-Modified');
+      const etagHeader = response.headers.get('ETag');
+
+      // Store Last-Modified for future HEAD checks
+      if (lastModifiedHeader) {
+        const serverTime = new Date(lastModifiedHeader).getTime();
+        if (!isNaN(serverTime)) {
+          await storeLastModified(feedUrl, serverTime);
+        }
+      } else if (headCheck.newLastModified) {
+        // Use the value from HEAD check
+        await storeLastModified(feedUrl, headCheck.newLastModified);
+      }
+
       const xml = await response.text();
+
+      // Cache the content if requested (prefetch feature)
+      if (cacheContent && xml) {
+        try {
+          await setFeedCache(feedUrl, xml, etagHeader, lastModifiedHeader);
+          console.log(`[Service Worker] Prefetched feed cached: ${feedUrl}`);
+        } catch (cacheError) {
+          console.warn('[Service Worker] Failed to cache prefetched feed:', cacheError);
+        }
+      }
 
       // Quick regex-based date extraction (much faster than full parsing)
       // Look for common date patterns in RSS/Atom feeds
@@ -137,8 +290,9 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
 
     const maxConcurrent = settings.maxConcurrentRequests;
     const delayMs = settings.requestDelayMs;
+    const prefetchOnUpdate = settings.prefetchOnUpdate ?? false;
 
-    console.log(`[Service Worker] Checking ${customBlogs.length} custom blogs (concurrency: ${maxConcurrent}, delay: ${delayMs}ms)...`);
+    console.log(`[Service Worker] Checking ${customBlogs.length} custom blogs (concurrency: ${maxConcurrent}, delay: ${delayMs}ms, prefetch: ${prefetchOnUpdate})...`);
 
     // Process blogs with configurable concurrency and throttling
     const blogStates: CustomBlogState[] = [];
@@ -147,7 +301,15 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
     // Define processor for each blog
     const processBlog = async (blog: CustomBlogSyncData): Promise<CustomBlogState> => {
       try {
-        const newestPostDate = await fetchNewestPostDate(blog.feedUrl, settings.requestTimeoutSeconds * 1000);
+        // Pass lastPostDate for HEAD optimization and prefetch setting
+        const newestPostDate = await fetchNewestPostDate(
+          blog.feedUrl,
+          blog.lastPostDate,
+          {
+            timeoutMs: settings.requestTimeoutSeconds * 1000,
+            cacheContent: prefetchOnUpdate,
+          }
+        );
 
         const hasUpdates = newestPostDate !== null &&
           blog.lastPostDate !== null &&

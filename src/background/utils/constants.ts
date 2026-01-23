@@ -71,3 +71,12 @@ export const STORAGE_KEY_PROBE_CACHE = 'probeCache';
 export const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 export const PROBE_TIMEOUT = 8000; // 8 seconds per path check
 export const PROBE_BATCH_SIZE = 3; // Check 3 paths in parallel
+
+// Feed cache configuration (conditional GET optimization)
+export const STORAGE_KEY_FEED_CACHE_PREFIX = 'feedCache:'; // + urlHash
+export const FEED_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache TTL
+export const FEED_CACHE_MAX_ENTRIES = 100; // Max cached feeds
+export const FEED_CACHE_MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB total cache size
+
+// HEAD request configuration (for custom blog update checking)
+export const HEAD_REQUEST_TIMEOUT = 5000; // 5 seconds for HEAD requests

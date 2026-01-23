@@ -171,6 +171,31 @@ export default function SettingsRoute() {
         </ItemGroup>
       </section>
 
+      {/* Performance Section */}
+      <section className="mb-6">
+        <h3 className="text-sm font-medium text-muted-foreground mb-3">
+          Performance
+        </h3>
+        <ItemGroup className="rounded-lg border border-border">
+          <Item>
+            <ItemContent>
+              <ItemTitle>Prefetch feed content</ItemTitle>
+              <ItemDescription>
+                Download feed content when updates are detected for faster loading (uses more bandwidth)
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                checked={settings.prefetchOnUpdate}
+                onCheckedChange={(checked) =>
+                  updateSettings({ prefetchOnUpdate: checked })
+                }
+              />
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </section>
+
       {/* Advanced Settings Section */}
       <section className="mb-6">
         <button

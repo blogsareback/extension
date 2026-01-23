@@ -22,6 +22,7 @@ import {
   getCommunityUpdatesState,
   getCatalogUpdatesState,
   getCustomBlogUpdatesState,
+  acknowledgeUpdates,
 } from './storage/state';
 
 // Handlers
@@ -91,6 +92,11 @@ import type {
   ExtensionSettings,
   GetAnalyticsRequest,
   GetAnalyticsResponse,
+  GetUpdateStateRequest,
+  GetUpdateStateResponse,
+  CombinedUpdateState,
+  AcknowledgeUpdatesRequest,
+  AcknowledgeUpdatesResponse,
 } from '../utils/types';
 
 // ============================================
@@ -406,6 +412,105 @@ browser.runtime.onMessage.addListener(
               error: error instanceof Error ? error.message : 'Unknown error',
             } as ForceCheckCustomBlogUpdatesResponse);
           });
+        return true; // Async response
+      }
+
+      // Handle GET_UPDATE_STATE from web app (unified update state query)
+      // This allows the web app to query extension's cached update state
+      // instead of making redundant API calls
+      if (message.type === 'GET_UPDATE_STATE') {
+        const request = message as GetUpdateStateRequest;
+
+        Promise.all([
+          getDirectoryUpdatesState(),
+          getCommunityUpdatesState(),
+          getCustomBlogUpdatesState(),
+          getSettings(),
+        ])
+          .then(([directoryState, communityState, customState, settings]) => {
+            // Build combined update state
+            const combinedState: CombinedUpdateState = {
+              directory: directoryState
+                ? {
+                  updatedCount: directoryState.updatedCount,
+                  followedCount: directoryState.followedCount,
+                  lastCheckedAt: directoryState.lastCheckedAt,
+                  isEnabled: directoryState.isEnabled,
+                  status: directoryState.status,
+                }
+                : null,
+              community: communityState
+                ? {
+                  updatedCount: communityState.updatedCount,
+                  followedCount: communityState.followedCount,
+                  lastCheckedAt: communityState.lastCheckedAt,
+                  isEnabled: communityState.isEnabled,
+                  status: communityState.status,
+                }
+                : null,
+              custom: customState
+                ? {
+                  updatedCount: customState.updatedCount,
+                  totalCount: customState.totalCount,
+                  lastCheckedAt: customState.lastCheckedAt,
+                  blogs: customState.blogs
+                    .filter((b) => b.hasUpdates)
+                    .map((b) => ({
+                      feedUrl: b.feedUrl,
+                      title: b.title,
+                      hasUpdates: b.hasUpdates,
+                    })),
+                }
+                : null,
+              mode: settings.extensionMode,
+              totalUpdatedCount:
+                (directoryState?.updatedCount ?? 0) +
+                (communityState?.updatedCount ?? 0) +
+                (customState?.updatedCount ?? 0),
+            };
+
+            sendResponse({
+              type: 'UPDATE_STATE_RESPONSE',
+              requestId: request.requestId,
+              success: true,
+              data: combinedState,
+            } as GetUpdateStateResponse);
+          })
+          .catch((error) => {
+            sendResponse({
+              type: 'UPDATE_STATE_RESPONSE',
+              requestId: request.requestId,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            } as GetUpdateStateResponse);
+          });
+
+        return true; // Async response
+      }
+
+      // Handle ACKNOWLEDGE_UPDATES from web app (via content script)
+      // This resets update counts and clears the badge when user has seen updates
+      if (message.type === 'ACKNOWLEDGE_UPDATES') {
+        const request = message as AcknowledgeUpdatesRequest;
+
+        acknowledgeUpdates(request.sources)
+          .then((acknowledgedCount) => {
+            sendResponse({
+              type: 'ACKNOWLEDGE_UPDATES_RESPONSE',
+              requestId: request.requestId,
+              success: true,
+              acknowledgedCount,
+            } as AcknowledgeUpdatesResponse);
+          })
+          .catch((error) => {
+            sendResponse({
+              type: 'ACKNOWLEDGE_UPDATES_RESPONSE',
+              requestId: request.requestId,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            } as AcknowledgeUpdatesResponse);
+          });
+
         return true; // Async response
       }
 

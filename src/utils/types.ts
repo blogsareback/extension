@@ -351,7 +351,11 @@ export type ExtensionMessage =
   | TestBlogStatusRequest
   | TestBlogStatusResponse
   | GetAnalyticsRequest
-  | GetAnalyticsResponse;
+  | GetAnalyticsResponse
+  | GetUpdateStateRequest
+  | GetUpdateStateResponse
+  | AcknowledgeUpdatesRequest
+  | AcknowledgeUpdatesResponse;
 
 // Statistics tracking
 
@@ -538,6 +542,10 @@ export interface ExtensionSettings {
   blogUpdateNotificationsEnabled: boolean; // Notify when directory blogs have new posts
   customBlogNotificationsEnabled: boolean; // Notify when custom blogs have new posts
 
+  // Performance
+  /** Pre-fetch feed content when updates are detected (uses more bandwidth) */
+  prefetchOnUpdate: boolean;
+
   // Advanced Settings
   /** Interval for automatic feed checks in minutes (0 = disabled) */
   feedCheckIntervalMinutes: number;
@@ -560,6 +568,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,
   customBlogNotificationsEnabled: true,
+  // Performance
+  prefetchOnUpdate: false, // Disabled by default to save bandwidth
   // Advanced defaults
   feedCheckIntervalMinutes: 10, // Check every 10 minutes
   requestTimeoutSeconds: 30, // 30 second timeout
@@ -754,6 +764,130 @@ export interface TestBlogStatusResponse {
   success: boolean;
   result?: BlogStatusTestResult;
   error?: string;
+}
+
+// ============================================
+// Unified Update State Query Messages (for web app integration)
+// ============================================
+
+/**
+ * Summary of update state for a catalog source
+ */
+export interface CatalogSourceUpdateSummary {
+  updatedCount: number;
+  followedCount: number;
+  lastCheckedAt: number | null;
+  isEnabled: boolean;
+  status: 'idle' | 'checking' | 'success' | 'error' | 'disabled';
+}
+
+/**
+ * Summary of custom blog update state
+ */
+export interface CustomBlogUpdateSummary {
+  updatedCount: number;
+  totalCount: number;
+  lastCheckedAt: number | null;
+  blogs: Array<{
+    feedUrl: string;
+    title: string;
+    hasUpdates: boolean;
+  }>;
+}
+
+/**
+ * Combined update state for all sources
+ */
+export interface CombinedUpdateState {
+  directory: CatalogSourceUpdateSummary | null;
+  community: CatalogSourceUpdateSummary | null;
+  custom: CustomBlogUpdateSummary | null;
+  mode: ExtensionMode;
+  totalUpdatedCount: number;
+}
+
+/**
+ * Message from web app to extension - Get combined update state
+ * This allows the web app to query extension's cached update state
+ * instead of making redundant API calls
+ */
+export interface GetUpdateStateRequest {
+  type: 'GET_UPDATE_STATE';
+  requestId: string;
+}
+
+/**
+ * Message from extension to web app - Combined update state response
+ */
+export interface GetUpdateStateResponse {
+  type: 'UPDATE_STATE_RESPONSE';
+  requestId: string;
+  success: boolean;
+  data?: CombinedUpdateState;
+  error?: string;
+}
+
+// ============================================
+// Update Acknowledgment Messages
+// ============================================
+
+/**
+ * Message from web app to extension - Acknowledge user has seen updates
+ * Clears the badge and resets update counts
+ */
+export interface AcknowledgeUpdatesRequest {
+  type: 'ACKNOWLEDGE_UPDATES';
+  requestId: string;
+  /** Optional: acknowledge only specific sources. If not provided, acknowledges all. */
+  sources?: Array<'directory' | 'community' | 'custom'>;
+}
+
+/**
+ * Message from extension to web app - Acknowledgment response
+ */
+export interface AcknowledgeUpdatesResponse {
+  type: 'ACKNOWLEDGE_UPDATES_RESPONSE';
+  requestId: string;
+  success: boolean;
+  /** Number of updates that were acknowledged */
+  acknowledgedCount?: number;
+  error?: string;
+}
+
+// ============================================
+// Feed Cache Types (for conditional GET support)
+// ============================================
+
+/**
+ * Cached feed entry for conditional GET optimization
+ */
+export interface FeedCacheEntry {
+  /** The feed URL */
+  url: string;
+  /** Hash of URL for storage key */
+  urlHash: string;
+  /** ETag header from response */
+  etag: string | null;
+  /** Last-Modified header from response */
+  lastModified: string | null;
+  /** The feed content */
+  content: string;
+  /** When the cache entry was created (ms) */
+  cachedAt: number;
+  /** When the cache entry expires (ms) */
+  expiresAt: number;
+  /** Size of content in bytes */
+  size: number;
+}
+
+/**
+ * Options for feed fetching with cache support
+ */
+export interface FetchFeedOptions {
+  /** Skip cache and force fresh fetch */
+  skipCache?: boolean;
+  /** Custom timeout in ms */
+  timeout?: number;
 }
 
 // Window augmentation for extension flags

@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,
   customBlogNotificationsEnabled: true,
+  // Performance
+  prefetchOnUpdate: false, // Disabled by default to save bandwidth
   // Advanced defaults
   feedCheckIntervalMinutes: 10, // Check every 10 minutes
   requestTimeoutSeconds: 30, // 30 second timeout

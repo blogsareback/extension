@@ -1,5 +1,6 @@
-import browser from '../utils/browser';
-import type { FeedLink, FeedsDetectedMessage } from '../utils/types';
+import browser from '../utils/browser'
+import { shouldExcludeUrl } from './excluded-domains'
+import type { FeedLink, FeedsDetectedMessage } from '../utils/types'
 
 /**
  * Feed Discovery Content Script
@@ -81,7 +82,13 @@ function isBlogsAreBackDomain(): boolean {
 function init(): void {
   // Skip feed discovery on BlogsAreBack domains - no need to discover feeds on the app itself
   if (isBlogsAreBackDomain()) {
-    return;
+    return
+  }
+
+  // Skip feed discovery on excluded domains (social media, platforms, Fediverse, etc.)
+  // Users can still manually add feeds from these sites via direct URL entry
+  if (shouldExcludeUrl(window.location)) {
+    return
   }
 
   // Wait for DOM to be ready
