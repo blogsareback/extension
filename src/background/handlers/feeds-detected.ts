@@ -17,6 +17,15 @@ import { probeCommonPaths } from './feed-probe';
 import type { FeedLink, FeedsDetectedMessage, QueuedSubscription, ProbeCacheEntry } from '../../utils/types';
 
 /**
+ * Check if a feed URL matches stricter recognition rules.
+ * Returns true if the URL contains "feed", "atom", or "rss" (case-insensitive).
+ */
+function matchesStricterRules(feedUrl: string): boolean {
+  const lowerUrl = feedUrl.toLowerCase();
+  return lowerUrl.includes('feed') || lowerUrl.includes('atom') || lowerUrl.includes('rss');
+}
+
+/**
  * Store discovered feeds per tab
  * Key: tabId, Value: { pageUrl, feeds }
  */
@@ -149,6 +158,41 @@ export async function handleFeedsDetected(
 
   // Update context menus with discovered feeds (still show all for now)
   await updateContextMenus(tabId, feeds);
+
+  // Notify floating button content script about unfollowed feeds
+  if (settings.floatingButtonEnabled && unfollowedFeedCount > 0) {
+    let unfollowedFeeds = feeds.filter(
+      (feed) => !normalizedFollowedUrls.has(normalizeUrl(feed.href))
+    );
+
+    // Apply stricter feed recognition if enabled
+    if (settings.stricterFeedRecognition) {
+      unfollowedFeeds = unfollowedFeeds.filter((feed) => matchesStricterRules(feed.href));
+      console.log(
+        `[Service Worker] Stricter feed recognition: ${unfollowedFeeds.length} of ${feeds.length} feeds match rules`
+      );
+    }
+
+    if (unfollowedFeeds.length > 0) {
+      await notifyFloatingButton(tabId, unfollowedFeeds);
+    }
+  }
+}
+
+/**
+ * Notify the floating button content script about available feeds
+ */
+async function notifyFloatingButton(tabId: number, feeds: FeedLink[]): Promise<void> {
+  try {
+    await browser.tabs.sendMessage(tabId, {
+      type: 'FLOATING_BUTTON_UPDATE',
+      feeds,
+    });
+    console.log(`[Service Worker] Notified floating button with ${feeds.length} feed(s)`);
+  } catch (error) {
+    // Content script may not be ready yet, this is expected
+    // The floating button will request feeds when it initializes
+  }
 }
 
 /**

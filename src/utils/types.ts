@@ -536,6 +536,9 @@ export interface ExtensionSettings {
   // Feed Discovery
   feedDiscoveryEnabled: boolean;
   showBadgeCount: boolean;
+  floatingButtonEnabled: boolean;
+  /** Only show floating button for feeds with "feed", "atom", or "rss" in the URL */
+  stricterFeedRecognition: boolean;
 
   // Notifications
   notificationsEnabled: boolean;
@@ -565,6 +568,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   extensionMode: 'basic', // Default to basic mode (conservative)
   feedDiscoveryEnabled: true,
   showBadgeCount: true,
+  floatingButtonEnabled: true,
+  stricterFeedRecognition: false, // Off by default for broader feed detection
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,
   customBlogNotificationsEnabled: true,

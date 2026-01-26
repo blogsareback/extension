@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Blogs Are Back - Feed Fetcher",
-  "version": "1.5.0",
+  "version": "1.7.0",
   "description": "Fetch RSS/Atom feeds directly from your browser for Blogs Are Back",
   "permissions": ["storage", "contextMenus", "tabs", "notifications", "alarms"],
   "host_permissions": ["<all_urls>"],
@@ -30,6 +30,11 @@
     {
       "matches": ["<all_urls>"],
       "js": ["feed-discovery.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["floating-button.js"],
       "run_at": "document_idle"
     }
   ],

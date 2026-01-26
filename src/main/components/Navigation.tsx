@@ -4,6 +4,7 @@ import ThemeToggle from '@/components/theme-toggle'
 
 const navItems = [
   { to: '/queue', label: 'Queue' },
+  { to: '/hidden-sites', label: 'Hidden Sites' },
   { to: '/settings', label: 'Settings' },
 ]
 

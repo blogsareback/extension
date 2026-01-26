@@ -28,6 +28,7 @@ export const STORAGE_KEY_CUSTOM_BLOG_UPDATES = 'customBlogUpdates';
 export const STORAGE_KEY_DIRECTORY_BLOG_TITLES = 'directoryBlogTitles'; // ID -> title mapping
 export const STORAGE_KEY_COMMUNITY_BLOG_TITLES = 'communityBlogTitles'; // ID -> title mapping
 export const STORAGE_KEY_ANALYTICS = 'analytics'; // Daily/aggregate stats for web app
+export const STORAGE_KEY_FLOATING_BUTTON_DISMISSED = 'floatingButtonDismissed'; // Dismissed domains
 
 // Analytics configuration
 export const ANALYTICS_MAX_DAILY_RECORDS = 30; // Keep 30 days of daily stats

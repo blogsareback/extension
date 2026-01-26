@@ -15,7 +15,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.
 const extensionVersion = packageJson.version;
 
 // Content scripts that need special bundling (no ES modules, must be self-contained IIFE)
-const contentScripts = ['content-script', 'feed-discovery', 'injected-script'];
+const contentScripts = ['content-script', 'feed-discovery', 'injected-script', 'floating-button'];
 
 /**
  * Plugin to transform content scripts from ES modules to self-contained IIFEs
@@ -25,72 +25,102 @@ function bundleContentScripts(): Plugin {
   return {
     name: 'bundle-content-scripts',
     generateBundle(_, bundle) {
-      // Find the browser polyfill chunk (if any)
-      let polyfillCode = '';
-      let polyfillChunkName = '';
-      let polyfillExportMap: Record<string, string> = {}; // Maps exported name -> internal name
+      // Build a map of all chunks with their code and exports
+      const chunkMap = new Map<string, { code: string; exportMap: Record<string, string> }>();
 
       for (const [fileName, chunk] of Object.entries(bundle)) {
-        if (chunk.type === 'chunk' && fileName.includes('browser-polyfill')) {
-          polyfillChunkName = fileName;
-          polyfillCode = chunk.code;
+        if (chunk.type === 'chunk') {
+          const exportMap: Record<string, string> = {};
 
-          // Parse the export statement to build a map of exported names to internal names
+          // Parse export statement to build export map
           // e.g., "export{I as B,U as a,L as g}" -> { B: 'I', a: 'U', g: 'L' }
-          const exportMatch = polyfillCode.match(/export\s*\{([^}]+)\};?/);
+          const exportMatch = chunk.code.match(/export\s*\{([^}]+)\};?/);
           if (exportMatch) {
             exportMatch[1].split(',').forEach(part => {
               const [internal, external] = part.trim().split(/\s+as\s+/);
               if (external) {
-                polyfillExportMap[external.trim()] = internal.trim();
+                exportMap[external.trim()] = internal.trim();
               } else {
-                polyfillExportMap[internal.trim()] = internal.trim();
+                exportMap[internal.trim()] = internal.trim();
               }
             });
           }
-          break;
+
+          chunkMap.set(fileName, { code: chunk.code, exportMap });
         }
       }
+
+      // Counter for unique namespace names
+      let namespaceCounter = 0;
 
       // Process each content script
       for (const [fileName, chunk] of Object.entries(bundle)) {
         if (chunk.type === 'chunk' && contentScripts.some(name => fileName === `${name}.js`)) {
           let code = chunk.code;
+          let inlinedCode = '';
 
-          // Check if this chunk imports from the polyfill
-          const importMatch = code.match(/import\s*\{([^}]+)\}\s*from\s*["'][^"']*browser-polyfill[^"']*["'];?/);
+          // Find and process ALL import statements
+          const importRegex = /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["'];?/g;
+          let match;
+          const processedImports = new Set<string>();
 
-          if (importMatch && polyfillCode) {
-            // Extract the imported bindings (e.g., "B as r" -> imported: 'B', local: 'r')
-            const bindings = importMatch[1].split(',').map(b => {
-              const parts = b.trim().split(/\s+as\s+/);
-              return { imported: parts[0].trim(), local: (parts[1] || parts[0]).trim() };
-            });
-
-            // Remove the import statement
-            code = code.replace(importMatch[0], '');
-
-            // Prepare the polyfill code without the export statement
-            let inlinedPolyfill = polyfillCode.replace(/export\s*\{[^}]+\};?/, '');
-
-            // Create variable assignments for the imported bindings
-            // e.g., import { B as r } -> the polyfill exports I as B -> var r = I;
-            const assignments = bindings.map(b => {
-              const internalName = polyfillExportMap[b.imported] || b.imported;
-              return `var ${b.local} = ${internalName};`;
-            }).join('\n');
-            inlinedPolyfill += '\n' + assignments;
-
-            // Combine: polyfill code + assignments + original code
-            code = inlinedPolyfill + '\n' + code;
+          // Collect all imports first
+          const imports: Array<{ fullMatch: string; bindings: string; importPath: string }> = [];
+          while ((match = importRegex.exec(code)) !== null) {
+            imports.push({ fullMatch: match[0], bindings: match[1], importPath: match[2] });
           }
 
-          // Wrap in IIFE
-          chunk.code = `(function(){\n${code}\n})();`;
+          for (const { bindings, importPath } of imports) {
+            // Find the chunk that matches this import path
+            let matchedChunkName: string | null = null;
+            for (const [chunkFileName] of chunkMap) {
+              // Match by chunk name in the path
+              if (importPath.includes(chunkFileName.replace('.js', '')) ||
+                chunkFileName.includes(importPath.split('/').pop()?.replace('.js', '') || '')) {
+                matchedChunkName = chunkFileName;
+                break;
+              }
+            }
+
+            if (matchedChunkName && !processedImports.has(matchedChunkName)) {
+              const chunkData = chunkMap.get(matchedChunkName)!;
+              processedImports.add(matchedChunkName);
+
+              // Create a unique namespace for this chunk to avoid variable collisions
+              const namespace = `__chunk${namespaceCounter++}__`;
+
+              // Prepare the chunk code without the export statement
+              let chunkCode = chunkData.code.replace(/export\s*\{[^}]+\};?/g, '');
+
+              // Wrap the chunk in an IIFE that returns the exports
+              const exportsList = Object.entries(chunkData.exportMap)
+                .map(([ext, int]) => `${ext}: ${int}`)
+                .join(', ');
+
+              // Parse bindings and create variable assignments from the namespace
+              const bindingsList = bindings.split(',').map(b => {
+                const parts = b.trim().split(/\s+as\s+/);
+                return { imported: parts[0].trim(), local: (parts[1] || parts[0]).trim() };
+              });
+
+              const assignments = bindingsList.map(b => {
+                return `var ${b.local} = ${namespace}.${b.imported};`;
+              }).join('\n');
+
+              // Wrap chunk in IIFE that returns exports object
+              inlinedCode += `var ${namespace} = (function() {\n${chunkCode}\nreturn { ${exportsList} };\n})();\n${assignments}\n`;
+            }
+          }
+
+          // Remove all import statements from the original code
+          code = code.replace(/import\s*\{[^}]+\}\s*from\s*["'][^"']+["'];?/g, '');
+
+          // Combine: inlined dependencies + original code, wrapped in IIFE
+          chunk.code = `(function(){\n${inlinedCode}${code}\n})();`;
         }
       }
 
-      // NOTE: Don't delete the polyfill chunk - the service worker still needs it
+      // NOTE: Don't delete the shared chunks - the service worker still needs them
       // (service workers can use ES modules, unlike content scripts)
     },
   };
@@ -165,6 +195,10 @@ export default defineConfig({
           __dirname,
           'src/content/feed-discovery.ts'
         ),
+        'floating-button': path.resolve(
+          __dirname,
+          'src/content/floating-button.ts'
+        ),
       },
       output: {
         entryFileNames: (chunkInfo) => {
@@ -173,7 +207,8 @@ export default defineConfig({
             chunkInfo.name === 'service-worker' ||
             chunkInfo.name === 'content-script' ||
             chunkInfo.name === 'injected-script' ||
-            chunkInfo.name === 'feed-discovery'
+            chunkInfo.name === 'feed-discovery' ||
+            chunkInfo.name === 'floating-button'
           ) {
             return '[name].js';
           }

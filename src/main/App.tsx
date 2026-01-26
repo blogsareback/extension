@@ -3,6 +3,7 @@ import { ThemeProvider } from '@/components/theme-provier'
 import { Navigation } from './components/Navigation'
 import QueueRoute from './routes/queue'
 import SettingsRoute from './routes/settings'
+import HiddenSitesRoute from './routes/hidden-sites'
 import { EXTENSION_VERSION } from '@/utils/constants'
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/queue" replace />} />
               <Route path="/queue" element={<QueueRoute />} />
+              <Route path="/hidden-sites" element={<HiddenSitesRoute />} />
               <Route path="/settings" element={<SettingsRoute />} />
             </Routes>
           </main>

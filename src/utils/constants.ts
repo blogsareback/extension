@@ -20,6 +20,7 @@ export const STORAGE_KEY_LAST_DIRECTORY_VISIT = 'lastDirectoryVisit';
 export const STORAGE_KEY_SETTINGS = 'settings';
 export const STORAGE_KEY_CUSTOM_BLOGS = 'customBlogs';
 export const STORAGE_KEY_CUSTOM_BLOG_UPDATES = 'customBlogUpdates';
+export const STORAGE_KEY_FLOATING_BUTTON_DISMISSED = 'floatingButtonDismissed'; // Domains where floating button is hidden
 
 // Directory updates API endpoint
 export const DIRECTORY_UPDATES_API_URL = 'https://www.blogsareback.com/api/directory/updates';

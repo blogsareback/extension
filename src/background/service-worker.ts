@@ -221,6 +221,50 @@ browser.runtime.onMessage.addListener(
         return undefined; // Synchronous response
       }
 
+      // Handle GET_FLOATING_BUTTON_FEEDS from floating button content script
+      // This uses the sender's tab ID instead of requiring it in the request
+      if (message.type === 'GET_FLOATING_BUTTON_FEEDS') {
+        const tabId = sender.tab?.id;
+        if (tabId) {
+          const tabData = discoveredFeeds.get(tabId);
+          const feeds = tabData?.feeds || [];
+
+          // Filter out already-followed feeds and apply stricter recognition if enabled
+          Promise.all([
+            browser.storage.local.get('followedFeedUrls'),
+            getSettings(),
+          ]).then(([result, settings]) => {
+            const followedUrls = (result.followedFeedUrls as string[] | undefined) || [];
+            const normalizeUrl = (url: string): string => {
+              try {
+                const parsed = new URL(url);
+                return (parsed.origin + parsed.pathname.replace(/\/$/, '')).toLowerCase();
+              } catch {
+                return url.toLowerCase();
+              }
+            };
+            const normalizedFollowed = new Set(followedUrls.map(normalizeUrl));
+            let unfollowedFeeds = feeds.filter(
+              (feed) => !normalizedFollowed.has(normalizeUrl(feed.href))
+            );
+
+            // Apply stricter feed recognition if enabled
+            if (settings.stricterFeedRecognition) {
+              unfollowedFeeds = unfollowedFeeds.filter((feed) => {
+                const lowerUrl = feed.href.toLowerCase();
+                return lowerUrl.includes('feed') || lowerUrl.includes('atom') || lowerUrl.includes('rss');
+              });
+            }
+
+            sendResponse({ feeds: unfollowedFeeds } as unknown as MessageResponse);
+          });
+          return true; // Async response
+        } else {
+          sendResponse({ feeds: [] } as unknown as MessageResponse);
+          return undefined; // Synchronous response
+        }
+      }
+
       // Handle POPUP_SUBSCRIBE from popup
       if (message.type === 'POPUP_SUBSCRIBE') {
         const request = message as PopupSubscribeRequest;

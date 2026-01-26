@@ -126,6 +126,42 @@ export default function SettingsRoute() {
               />
             </ItemActions>
           </Item>
+          <ItemSeparator />
+          <Item>
+            <ItemContent>
+              <ItemTitle>Floating subscribe button</ItemTitle>
+              <ItemDescription>
+                Show a subscribe button on pages with RSS feeds
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                checked={settings.floatingButtonEnabled}
+                onCheckedChange={(checked) =>
+                  updateSettings({ floatingButtonEnabled: checked })
+                }
+                disabled={!settings.feedDiscoveryEnabled}
+              />
+            </ItemActions>
+          </Item>
+          <ItemSeparator />
+          <Item>
+            <ItemContent>
+              <ItemTitle>Stricter feed recognition</ItemTitle>
+              <ItemDescription>
+                Only show floating button for feeds with "feed", "atom", or "rss" in the URL
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                checked={settings.stricterFeedRecognition}
+                onCheckedChange={(checked) =>
+                  updateSettings({ stricterFeedRecognition: checked })
+                }
+                disabled={!settings.feedDiscoveryEnabled || !settings.floatingButtonEnabled}
+              />
+            </ItemActions>
+          </Item>
         </ItemGroup>
       </section>
 
