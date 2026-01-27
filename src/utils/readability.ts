@@ -152,9 +152,12 @@ export function cleanHtmlAttributes(html: string, baseUrl: string): string {
     const essentialAttrs: Record<string, string> = {};
 
     if (tagName === 'img') {
-      // For images, keep src and alt
+      // For images, keep src, alt, title, width, height
       const srcAttr = element.getAttribute('src');
       const alt = element.getAttribute('alt');
+      const title = element.getAttribute('title');
+      const width = element.getAttribute('width');
+      const height = element.getAttribute('height');
 
       if (srcAttr) {
         // Use element.src property which should give resolved URL based on document's baseURI
@@ -173,9 +176,19 @@ export function cleanHtmlAttributes(html: string, baseUrl: string): string {
       if (alt) {
         essentialAttrs.alt = alt;
       }
+      if (title) {
+        essentialAttrs.title = title;
+      }
+      if (width) {
+        essentialAttrs.width = width;
+      }
+      if (height) {
+        essentialAttrs.height = height;
+      }
     } else if (tagName === 'a') {
-      // For links, keep href
+      // For links, keep href and title
       const hrefAttr = element.getAttribute('href');
+      const title = element.getAttribute('title');
 
       if (hrefAttr) {
         // Use element.href property which should give resolved URL based on document's baseURI
@@ -190,6 +203,43 @@ export function cleanHtmlAttributes(html: string, baseUrl: string): string {
         if (absoluteHref) {
           essentialAttrs.href = absoluteHref;
         }
+      }
+      if (title) {
+        essentialAttrs.title = title;
+      }
+    } else if (tagName === 'abbr') {
+      // For abbreviations, keep title (shows on hover)
+      const title = element.getAttribute('title');
+      if (title) {
+        essentialAttrs.title = title;
+      }
+    } else if (tagName === 'time') {
+      // For time elements, keep datetime for semantic value
+      const datetime = element.getAttribute('datetime');
+      if (datetime) {
+        essentialAttrs.datetime = datetime;
+      }
+    } else if (tagName === 'details') {
+      // For collapsible sections, keep open state
+      const open = element.getAttribute('open');
+      if (open !== null) {
+        essentialAttrs.open = open;
+      }
+    } else if (tagName === 'td' || tagName === 'th') {
+      // For table cells, keep colspan and rowspan
+      const colspan = element.getAttribute('colspan');
+      const rowspan = element.getAttribute('rowspan');
+      if (colspan) {
+        essentialAttrs.colspan = colspan;
+      }
+      if (rowspan) {
+        essentialAttrs.rowspan = rowspan;
+      }
+    } else if (tagName === 'col' || tagName === 'colgroup') {
+      // For column elements, keep span
+      const span = element.getAttribute('span');
+      if (span) {
+        essentialAttrs.span = span;
       }
     }
 
