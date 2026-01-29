@@ -1,0 +1,289 @@
+@import 'tailwindcss' source(none);
+@import './tailwind-base.css';
+@source './FloatingButton.tsx';
+@source './icons.tsx';
+
+@theme inline {
+  /* Color tokens via CSS variable indirection for dark mode support */
+  --color-bab-bg: var(--bab-bg);
+  --color-bab-bg-hover: var(--bab-bg-hover);
+  --color-bab-border: var(--bab-border);
+  --color-bab-text: var(--bab-text);
+  --color-bab-text-muted: var(--bab-text-muted);
+  --color-bab-primary: var(--bab-primary);
+  --color-bab-primary-hover: var(--bab-primary-hover);
+  --color-bab-success: var(--bab-success);
+
+  /* Glass style colors */
+  --color-bab-glass-bg: var(--bab-glass-bg);
+  --color-bab-glass-border: var(--bab-glass-border);
+
+  /* Animation tokens - bottom positions (slide up/down) */
+  --animate-slide-up: slide-up 300ms ease-out forwards;
+  --animate-slide-down: slide-down 200ms ease-in forwards;
+  /* Animation tokens - top positions (slide down/up) */
+  --animate-slide-in-top: slide-in-top 300ms ease-out forwards;
+  --animate-slide-out-top: slide-out-top 200ms ease-in forwards;
+  /* Other animations */
+  --animate-spin-loading: spin-loading 1s linear infinite;
+  --animate-draw-check: draw-check 0.6s ease-out forwards;
+  --animate-fade-out: fade-out 300ms ease-out forwards;
+  --animate-expand: expand 200ms ease-out forwards;
+}
+
+/* Light mode defaults */
+:host {
+  --bab-bg: #ffffff;
+  --bab-bg-hover: #f9fafb;
+  --bab-border: #e5e7eb;
+  --bab-text: #111827;
+  --bab-text-muted: #6b7280;
+  --bab-primary: #3b82f6;
+  --bab-primary-hover: #2563eb;
+  --bab-success: #22c55e;
+  --bab-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --bab-shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  /* Glass style */
+  --bab-glass-bg: rgba(255, 255, 255, 0.7);
+  --bab-glass-border: rgba(255, 255, 255, 0.3);
+}
+
+/* Dark mode overrides (detected from page, not OS preference) */
+:host(.dark) {
+  --bab-bg: #1f2937;
+  --bab-bg-hover: #374151;
+  --bab-border: #4b5563;
+  --bab-text: #f9fafb;
+  --bab-text-muted: #9ca3af;
+  --bab-primary: #60a5fa;
+  --bab-primary-hover: #3b82f6;
+  --bab-success: #a6d189;
+  --bab-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --bab-shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  /* Glass style - dark mode */
+  --bab-glass-bg: rgba(31, 41, 55, 0.7);
+  --bab-glass-border: rgba(75, 85, 99, 0.5);
+}
+
+/* Keyframes */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes spin-loading {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes draw-check {
+  from {
+    stroke-dashoffset: 30;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Top position animations (opposite direction) */
+@keyframes slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-out-top {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+
+/* Fade out animation for auto-fade behavior */
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+
+/* Expand animation for minimal style */
+@keyframes expand {
+  from {
+    width: 44px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  to {
+    width: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Style variants */
+.bab-style-ghost {
+  background: transparent !important;
+  border: 1.5px solid var(--bab-border) !important;
+  box-shadow: none !important;
+}
+
+.bab-style-ghost:hover {
+  background: var(--bab-bg) !important;
+  box-shadow: var(--bab-shadow) !important;
+}
+
+.bab-style-glass {
+  background: var(--bab-glass-bg) !important;
+  border: 1px solid var(--bab-glass-border) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.bab-style-glass:hover {
+  background: var(--bab-bg) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Minimal style - compact circle that expands on hover */
+/* Uses max-width for smooth animation (width: auto cannot be transitioned) */
+.bab-style-minimal {
+  max-width: 44px;
+  height: 44px;
+  padding: 0.625rem !important;
+  border-radius: 9999px !important;
+  justify-content: center;
+  overflow: hidden;
+  gap: 0 !important;
+  transition: max-width 200ms ease-out, gap 200ms ease-out;
+}
+
+.bab-style-minimal .bab-button-text {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 200ms ease-out, max-width 200ms ease-out;
+}
+
+.bab-minimal-wrapper:hover .bab-style-minimal {
+  max-width: 200px;
+  gap: 0.5rem !important;
+}
+
+.bab-minimal-wrapper:hover .bab-style-minimal .bab-button-text {
+  opacity: 1;
+  max-width: 100px;
+}
+
+/* Extend hover area for minimal wrapper using padding */
+.bab-minimal-wrapper {
+  /* Padding extends hover area without blocking button clicks */
+  padding: 4px 70px;
+  margin: -4px -70px; /* Negative margin to keep visual position unchanged */
+}
+
+/* Peek style - button peeks from the edge */
+/* Hover is handled by parent wrapper to prevent stutter when button transforms */
+/* Uses transition-delay on non-hover to prevent flicker when cursor is at edge */
+.bab-style-peek {
+  transition: transform 200ms ease-out 150ms, opacity 200ms ease-out;
+}
+
+/* Peek from right edge */
+.bab-style-peek.bab-peek-right {
+  transform: translateX(calc(100% - 16px));
+}
+
+.bab-peek-wrapper-right:hover .bab-style-peek.bab-peek-right {
+  transform: translateX(0);
+  transition-delay: 0ms;
+}
+
+/* Peek from left edge */
+.bab-style-peek.bab-peek-left {
+  transform: translateX(calc(-100% + 16px));
+}
+
+.bab-peek-wrapper-left:hover .bab-style-peek.bab-peek-left {
+  transform: translateX(0);
+  transition-delay: 0ms;
+}
+
+/* Extend the hover area of the peek wrapper using padding */
+.bab-peek-wrapper-right {
+  padding-right: 100px; /* Extend hover area towards screen edge */
+  margin-right: -100px;
+}
+
+.bab-peek-wrapper-left {
+  padding-left: 100px;
+  margin-left: -100px;
+}
+
+/* Faded state for auto-fade behavior */
+.bab-faded {
+  opacity: 0.4;
+  transition: opacity 300ms ease-out;
+}
+
+.bab-faded:hover {
+  opacity: 1;
+}
+
+/* Dismiss button - hidden by default, reveals on hover */
+.bab-dismiss-button {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 150ms ease-out, transform 150ms ease-out, background-color 150ms ease-in-out, color 150ms ease-in-out;
+  pointer-events: none;
+}
+
+.bab-button-container:hover .bab-dismiss-button {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  transition-delay: 200ms; /* Slight delay before appearing */
+}
+
+/* Remove delay when hiding so it disappears quickly */
+.bab-button-container:not(:hover) .bab-dismiss-button {
+  transition-delay: 0ms;
+}

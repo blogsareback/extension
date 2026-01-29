@@ -402,12 +402,17 @@ async function sendQueuedSubscriptions(): Promise<void> {
     };
 
     // Dispatch custom event on document (works across content script boundary)
+
+    // We may want to remove the postMessage below and use this comment:
+    //   Note: We only use CustomEvent (not postMessage) to avoid duplicate messages
+    //   since the web app listens to both channels as a fallback strategy
     const event = new CustomEvent('bab-extension-subscriptions', {
       detail: message,
     });
     document.dispatchEvent(event);
 
     // Also try postMessage as fallback (some setups may prefer this)
+    // (might be removed, depending on user experience with web app)
     window.postMessage(message, window.location.origin);
 
     // NOTE: Queue is NOT cleared here - we wait for acknowledgment from web app

@@ -53,6 +53,8 @@ import {
   handleTabRemoved,
   handleTabUpdated,
   updateBadge,
+  markShownForSession,
+  hasShownThisSession,
 } from './handlers/feeds-detected';
 
 // Types
@@ -225,6 +227,22 @@ browser.runtime.onMessage.addListener(
       // This uses the sender's tab ID instead of requiring it in the request
       if (message.type === 'GET_FLOATING_BUTTON_FEEDS') {
         const tabId = sender.tab?.id;
+        const tabUrl = sender.tab?.url;
+
+        // Check if this domain was already shown this session
+        if (tabUrl) {
+          try {
+            const domain = new URL(tabUrl).hostname;
+            if (hasShownThisSession(domain)) {
+              console.log(`[Service Worker] Skipping floating button feeds for ${domain} (already shown this session)`);
+              sendResponse({ feeds: [] } as unknown as MessageResponse);
+              return undefined;
+            }
+          } catch {
+            // Ignore URL parse errors
+          }
+        }
+
         if (tabId) {
           const tabData = discoveredFeeds.get(tabId);
           const feeds = tabData?.feeds || [];
@@ -265,9 +283,34 @@ browser.runtime.onMessage.addListener(
         }
       }
 
+      // Handle FLOATING_BUTTON_DISMISSED from floating button content script
+      // Mark the domain as shown this session so the button doesn't reappear
+      if (message.type === 'FLOATING_BUTTON_DISMISSED') {
+        const tabUrl = sender.tab?.url;
+        if (tabUrl) {
+          try {
+            const domain = new URL(tabUrl).hostname;
+            markShownForSession(domain);
+            console.log(`[Service Worker] Floating button dismissed for ${domain}`);
+          } catch {
+            // Ignore URL parse errors
+          }
+        }
+        sendResponse({ success: true } as unknown as MessageResponse);
+        return undefined;
+      }
+
       // Handle POPUP_SUBSCRIBE from popup
       if (message.type === 'POPUP_SUBSCRIBE') {
         const request = message as PopupSubscribeRequest;
+
+        // Mark domain as shown this session (user interacted with button)
+        try {
+          const domain = new URL(request.pageUrl).hostname;
+          markShownForSession(domain);
+        } catch {
+          // Ignore URL parse errors
+        }
 
         queueSubscription({
           feedUrl: request.feed.href,
@@ -476,35 +519,35 @@ browser.runtime.onMessage.addListener(
             const combinedState: CombinedUpdateState = {
               directory: directoryState
                 ? {
-                  updatedCount: directoryState.updatedCount,
-                  followedCount: directoryState.followedCount,
-                  lastCheckedAt: directoryState.lastCheckedAt,
-                  isEnabled: directoryState.isEnabled,
-                  status: directoryState.status,
-                }
+                    updatedCount: directoryState.updatedCount,
+                    followedCount: directoryState.followedCount,
+                    lastCheckedAt: directoryState.lastCheckedAt,
+                    isEnabled: directoryState.isEnabled,
+                    status: directoryState.status,
+                  }
                 : null,
               community: communityState
                 ? {
-                  updatedCount: communityState.updatedCount,
-                  followedCount: communityState.followedCount,
-                  lastCheckedAt: communityState.lastCheckedAt,
-                  isEnabled: communityState.isEnabled,
-                  status: communityState.status,
-                }
+                    updatedCount: communityState.updatedCount,
+                    followedCount: communityState.followedCount,
+                    lastCheckedAt: communityState.lastCheckedAt,
+                    isEnabled: communityState.isEnabled,
+                    status: communityState.status,
+                  }
                 : null,
               custom: customState
                 ? {
-                  updatedCount: customState.updatedCount,
-                  totalCount: customState.totalCount,
-                  lastCheckedAt: customState.lastCheckedAt,
-                  blogs: customState.blogs
-                    .filter((b) => b.hasUpdates)
-                    .map((b) => ({
-                      feedUrl: b.feedUrl,
-                      title: b.title,
-                      hasUpdates: b.hasUpdates,
-                    })),
-                }
+                    updatedCount: customState.updatedCount,
+                    totalCount: customState.totalCount,
+                    lastCheckedAt: customState.lastCheckedAt,
+                    blogs: customState.blogs
+                      .filter((b) => b.hasUpdates)
+                      .map((b) => ({
+                        feedUrl: b.feedUrl,
+                        title: b.title,
+                        hasUpdates: b.hasUpdates,
+                      })),
+                  }
                 : null,
               mode: settings.extensionMode,
               totalUpdatedCount:

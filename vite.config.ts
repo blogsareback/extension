@@ -1,4 +1,5 @@
 import { defineConfig, Plugin } from 'vite';
+import { build as esbuild } from 'esbuild';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
@@ -18,110 +19,26 @@ const extensionVersion = packageJson.version;
 const contentScripts = ['content-script', 'feed-discovery', 'injected-script', 'floating-button'];
 
 /**
- * Plugin to transform content scripts from ES modules to self-contained IIFEs
- * Content scripts cannot use import statements, so we need to inline all dependencies
+ * Plugin to re-bundle content scripts as self-contained IIFEs using esbuild.
+ * After Vite writes ES module output, esbuild resolves each content script's
+ * imports and produces a single IIFE file - overwriting the original.
+ * Shared chunks remain on disk for the service worker (which uses ES modules).
  */
 function bundleContentScripts(): Plugin {
   return {
     name: 'bundle-content-scripts',
-    generateBundle(_, bundle) {
-      // Build a map of all chunks with their code and exports
-      const chunkMap = new Map<string, { code: string; exportMap: Record<string, string> }>();
-
-      for (const [fileName, chunk] of Object.entries(bundle)) {
-        if (chunk.type === 'chunk') {
-          const exportMap: Record<string, string> = {};
-
-          // Parse export statement to build export map
-          // e.g., "export{I as B,U as a,L as g}" -> { B: 'I', a: 'U', g: 'L' }
-          const exportMatch = chunk.code.match(/export\s*\{([^}]+)\};?/);
-          if (exportMatch) {
-            exportMatch[1].split(',').forEach(part => {
-              const [internal, external] = part.trim().split(/\s+as\s+/);
-              if (external) {
-                exportMap[external.trim()] = internal.trim();
-              } else {
-                exportMap[internal.trim()] = internal.trim();
-              }
-            });
-          }
-
-          chunkMap.set(fileName, { code: chunk.code, exportMap });
-        }
-      }
-
-      // Counter for unique namespace names
-      let namespaceCounter = 0;
-
-      // Process each content script
-      for (const [fileName, chunk] of Object.entries(bundle)) {
-        if (chunk.type === 'chunk' && contentScripts.some(name => fileName === `${name}.js`)) {
-          let code = chunk.code;
-          let inlinedCode = '';
-
-          // Find and process ALL import statements
-          const importRegex = /import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["'];?/g;
-          let match;
-          const processedImports = new Set<string>();
-
-          // Collect all imports first
-          const imports: Array<{ fullMatch: string; bindings: string; importPath: string }> = [];
-          while ((match = importRegex.exec(code)) !== null) {
-            imports.push({ fullMatch: match[0], bindings: match[1], importPath: match[2] });
-          }
-
-          for (const { bindings, importPath } of imports) {
-            // Find the chunk that matches this import path
-            let matchedChunkName: string | null = null;
-            for (const [chunkFileName] of chunkMap) {
-              // Match by chunk name in the path
-              if (importPath.includes(chunkFileName.replace('.js', '')) ||
-                chunkFileName.includes(importPath.split('/').pop()?.replace('.js', '') || '')) {
-                matchedChunkName = chunkFileName;
-                break;
-              }
-            }
-
-            if (matchedChunkName && !processedImports.has(matchedChunkName)) {
-              const chunkData = chunkMap.get(matchedChunkName)!;
-              processedImports.add(matchedChunkName);
-
-              // Create a unique namespace for this chunk to avoid variable collisions
-              const namespace = `__chunk${namespaceCounter++}__`;
-
-              // Prepare the chunk code without the export statement
-              let chunkCode = chunkData.code.replace(/export\s*\{[^}]+\};?/g, '');
-
-              // Wrap the chunk in an IIFE that returns the exports
-              const exportsList = Object.entries(chunkData.exportMap)
-                .map(([ext, int]) => `${ext}: ${int}`)
-                .join(', ');
-
-              // Parse bindings and create variable assignments from the namespace
-              const bindingsList = bindings.split(',').map(b => {
-                const parts = b.trim().split(/\s+as\s+/);
-                return { imported: parts[0].trim(), local: (parts[1] || parts[0]).trim() };
-              });
-
-              const assignments = bindingsList.map(b => {
-                return `var ${b.local} = ${namespace}.${b.imported};`;
-              }).join('\n');
-
-              // Wrap chunk in IIFE that returns exports object
-              inlinedCode += `var ${namespace} = (function() {\n${chunkCode}\nreturn { ${exportsList} };\n})();\n${assignments}\n`;
-            }
-          }
-
-          // Remove all import statements from the original code
-          code = code.replace(/import\s*\{[^}]+\}\s*from\s*["'][^"']+["'];?/g, '');
-
-          // Combine: inlined dependencies + original code, wrapped in IIFE
-          chunk.code = `(function(){\n${inlinedCode}${code}\n})();`;
-        }
-      }
-
-      // NOTE: Don't delete the shared chunks - the service worker still needs them
-      // (service workers can use ES modules, unlike content scripts)
+    async writeBundle() {
+      await Promise.all(
+        contentScripts.map((name) =>
+          esbuild({
+            entryPoints: [path.resolve(outDir, `${name}.js`)],
+            bundle: true,
+            format: 'iife',
+            outfile: path.resolve(outDir, `${name}.js`),
+            allowOverwrite: true,
+          }),
+        ),
+      );
     },
   };
 }
@@ -197,7 +114,7 @@ export default defineConfig({
         ),
         'floating-button': path.resolve(
           __dirname,
-          'src/content/floating-button.ts'
+          'src/content/floating-button/index.ts'
         ),
       },
       output: {
@@ -216,10 +133,6 @@ export default defineConfig({
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
-        // Prevent shared chunks between entry points
-        // Each content script needs to be self-contained to avoid
-        // variable collisions when multiple scripts are injected
-        manualChunks: () => undefined,
       },
     },
     emptyOutDir: true, // Clear the output directory on build

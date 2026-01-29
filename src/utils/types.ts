@@ -526,6 +526,34 @@ export interface GetAnalyticsResponse {
 export type ExtensionMode = 'basic' | 'featured';
 
 // ============================================
+// Floating Button Customization Types
+// ============================================
+
+/**
+ * Visual style for the floating button
+ * - 'solid': Full opacity, high visibility (default)
+ * - 'ghost': Outline only, transparent background, becomes solid on hover
+ * - 'glass': Semi-transparent with backdrop blur
+ * - 'minimal': Small icon only (20px), expands to full button on hover
+ * - 'peek': Mostly hidden at edge, slides in on hover
+ */
+export type ButtonStyle = 'solid' | 'ghost' | 'glass' | 'minimal' | 'peek';
+
+/**
+ * Position of the floating button on the viewport
+ */
+export type ButtonPosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+/**
+ * Behavior mode for the floating button appearance
+ * - 'always': Button stays fully visible (default)
+ * - 'auto-fade': Full button for 5 seconds, then fades to lower opacity
+ * - 'scroll-up': Only appears when user scrolls up (like mobile browser chrome)
+ * - 'article-end': Only appears when user reaches near the bottom of the article
+ */
+export type ButtonBehavior = 'always' | 'auto-fade' | 'scroll-up' | 'article-end';
+
+// ============================================
 // Extension Settings
 // ============================================
 
@@ -539,6 +567,18 @@ export interface ExtensionSettings {
   floatingButtonEnabled: boolean;
   /** Only show floating button for feeds with "feed", "atom", or "rss" in the URL */
   stricterFeedRecognition: boolean;
+
+  // Floating Button Customization
+  /** Visual style of the floating button */
+  floatingButtonStyle: ButtonStyle;
+  /** Position of the floating button on the viewport */
+  floatingButtonPosition: ButtonPosition;
+  /** Behavior mode for button appearance */
+  floatingButtonBehavior: ButtonBehavior;
+  /** Delay in seconds before showing the button (0 = immediate) */
+  floatingButtonShowDelay: number;
+  /** Only show the button on pages detected as articles */
+  floatingButtonOnlyArticles: boolean;
 
   // Notifications
   notificationsEnabled: boolean;
@@ -570,16 +610,28 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   showBadgeCount: true,
   floatingButtonEnabled: true,
   stricterFeedRecognition: false, // Off by default for broader feed detection
+
+  // Floating button customization defaults
+  floatingButtonStyle: 'minimal', // original default: 'solid'
+  floatingButtonPosition: 'bottom-right',
+  floatingButtonBehavior: 'article-end', // original default: 'always'
+  floatingButtonShowDelay: 0, // Show immediately
+  floatingButtonOnlyArticles: true, // Show on all pages with feeds (original default: false)
+
+  // Notifications
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,
   customBlogNotificationsEnabled: true,
+
   // Performance
   prefetchOnUpdate: false, // Disabled by default to save bandwidth
+
   // Advanced defaults
   feedCheckIntervalMinutes: 10, // Check every 10 minutes
   requestTimeoutSeconds: 30, // 30 second timeout
   maxConcurrentRequests: 10, // Up to 10 concurrent requests
   requestDelayMs: 0, // No delay between requests by default
+
   // UI preferences
   advancedSettingsExpanded: false, // Collapsed by default
 };

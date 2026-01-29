@@ -35,6 +35,42 @@ export const discoveredFeeds = new Map<
 >();
 
 /**
+ * Track domains where floating button was shown/interacted with this session.
+ * This map resets when the service worker restarts.
+ * Key: domain (hostname without www), Value: timestamp of last interaction
+ */
+export const shownDomainsThisSession = new Map<string, number>();
+
+/**
+ * Check if a domain has already had the floating button shown this session
+ */
+export function hasShownThisSession(domain: string): boolean {
+  const normalizedDomain = domain.replace(/^www\./, '').toLowerCase();
+  return shownDomainsThisSession.has(normalizedDomain);
+}
+
+/**
+ * Mark a domain as having shown the floating button this session
+ */
+export function markShownForSession(domain: string): void {
+  const normalizedDomain = domain.replace(/^www\./, '').toLowerCase();
+  shownDomainsThisSession.set(normalizedDomain, Date.now());
+  console.log(`[Service Worker] Marked domain as shown this session: ${normalizedDomain}`);
+}
+
+/**
+ * Get the domain from a URL
+ */
+function getDomainFromUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Update browser action badge with feed count
  */
 export async function updateBadge(tabId: number, feedCount: number): Promise<void> {
@@ -159,8 +195,8 @@ export async function handleFeedsDetected(
   // Update context menus with discovered feeds (still show all for now)
   await updateContextMenus(tabId, feeds);
 
-  // Notify floating button content script about unfollowed feeds
-  if (settings.floatingButtonEnabled && unfollowedFeedCount > 0) {
+  // Notify floating button content script about unfollowed feeds (featured mode only)
+  if (settings.extensionMode === 'featured' && settings.floatingButtonEnabled && unfollowedFeedCount > 0) {
     let unfollowedFeeds = feeds.filter(
       (feed) => !normalizedFollowedUrls.has(normalizeUrl(feed.href))
     );
@@ -174,7 +210,7 @@ export async function handleFeedsDetected(
     }
 
     if (unfollowedFeeds.length > 0) {
-      await notifyFloatingButton(tabId, unfollowedFeeds);
+      await notifyFloatingButton(tabId, unfollowedFeeds, message.pageUrl);
     }
   }
 }
@@ -182,8 +218,15 @@ export async function handleFeedsDetected(
 /**
  * Notify the floating button content script about available feeds
  */
-async function notifyFloatingButton(tabId: number, feeds: FeedLink[]): Promise<void> {
+async function notifyFloatingButton(tabId: number, feeds: FeedLink[], pageUrl: string): Promise<void> {
   try {
+    // Check if this domain was already shown this session
+    const domain = getDomainFromUrl(pageUrl);
+    if (domain && hasShownThisSession(domain)) {
+      console.log(`[Service Worker] Skipping floating button for ${domain} (already shown this session)`);
+      return;
+    }
+
     await browser.tabs.sendMessage(tabId, {
       type: 'FLOATING_BUTTON_UPDATE',
       feeds,

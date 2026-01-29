@@ -54,6 +54,35 @@ const REQUEST_DELAY_OPTIONS = [
   { value: '1000', label: '1 second' },
 ]
 
+const BUTTON_STYLE_OPTIONS = [
+  { value: 'solid', label: 'Solid', description: 'Full opacity, high visibility' },
+  { value: 'ghost', label: 'Ghost', description: 'Outline only, subtle' },
+  { value: 'glass', label: 'Glass', description: 'Translucent with blur' },
+  { value: 'minimal', label: 'Minimal', description: 'Icon only, expands on hover' },
+  { value: 'peek', label: 'Peek', description: 'Peeks from edge, slides in on hover' },
+]
+
+const BUTTON_POSITION_OPTIONS = [
+  { value: 'bottom-right', label: 'Bottom right' },
+  { value: 'bottom-left', label: 'Bottom left' },
+  { value: 'top-right', label: 'Top right' },
+  { value: 'top-left', label: 'Top left' },
+]
+
+const BUTTON_BEHAVIOR_OPTIONS = [
+  { value: 'always', label: 'Always visible', description: 'Button stays visible' },
+  { value: 'auto-fade', label: 'Auto-fade', description: 'Fades after 5 seconds' },
+  { value: 'scroll-up', label: 'Show on scroll up', description: 'Appears when scrolling up' },
+  { value: 'article-end', label: 'At article end', description: 'Shows near page bottom' },
+]
+
+const SHOW_DELAY_OPTIONS = [
+  { value: '0', label: 'Immediately' },
+  { value: '3', label: 'After 3 seconds' },
+  { value: '5', label: 'After 5 seconds' },
+  { value: '10', label: 'After 10 seconds' },
+]
+
 export default function SettingsRoute() {
   const { settings, loading, updateSettings, clearData, resetSettings } =
     useSettings()
@@ -163,6 +192,145 @@ export default function SettingsRoute() {
             </ItemActions>
           </Item>
         </ItemGroup>
+
+        {/* Floating Button Customization - only show when button is enabled */}
+        {settings.feedDiscoveryEnabled && settings.floatingButtonEnabled && (
+          <div className="mt-4">
+            <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+              Button Appearance
+            </h4>
+            <ItemGroup className="rounded-lg border border-border">
+              <Item>
+                <ItemContent>
+                  <ItemTitle>Style</ItemTitle>
+                  <ItemDescription>
+                    {BUTTON_STYLE_OPTIONS.find(o => o.value === settings.floatingButtonStyle)?.description}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Select
+                    value={settings.floatingButtonStyle}
+                    onValueChange={(value) =>
+                      updateSettings({ floatingButtonStyle: value as 'solid' | 'ghost' | 'glass' | 'minimal' | 'peek' })
+                    }
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUTTON_STYLE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </ItemActions>
+              </Item>
+              <ItemSeparator />
+              <Item>
+                <ItemContent>
+                  <ItemTitle>Position</ItemTitle>
+                  <ItemDescription>
+                    Where the button appears on the screen
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Select
+                    value={settings.floatingButtonPosition}
+                    onValueChange={(value) =>
+                      updateSettings({ floatingButtonPosition: value as 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' })
+                    }
+                  >
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUTTON_POSITION_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </ItemActions>
+              </Item>
+              <ItemSeparator />
+              <Item>
+                <ItemContent>
+                  <ItemTitle>Behavior</ItemTitle>
+                  <ItemDescription>
+                    {BUTTON_BEHAVIOR_OPTIONS.find(o => o.value === settings.floatingButtonBehavior)?.description}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Select
+                    value={settings.floatingButtonBehavior}
+                    onValueChange={(value) =>
+                      updateSettings({ floatingButtonBehavior: value as 'always' | 'auto-fade' | 'scroll-up' | 'article-end' })
+                    }
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUTTON_BEHAVIOR_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </ItemActions>
+              </Item>
+              <ItemSeparator />
+              <Item>
+                <ItemContent>
+                  <ItemTitle>Show delay</ItemTitle>
+                  <ItemDescription>
+                    Wait before showing the button
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Select
+                    value={settings.floatingButtonShowDelay.toString()}
+                    onValueChange={(value) =>
+                      updateSettings({ floatingButtonShowDelay: parseInt(value, 10) })
+                    }
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SHOW_DELAY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </ItemActions>
+              </Item>
+              <ItemSeparator />
+              <Item>
+                <ItemContent>
+                  <ItemTitle>Only on article pages</ItemTitle>
+                  <ItemDescription>
+                    Use content detection to identify blog posts
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Switch
+                    checked={settings.floatingButtonOnlyArticles}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ floatingButtonOnlyArticles: checked })
+                    }
+                  />
+                </ItemActions>
+              </Item>
+            </ItemGroup>
+          </div>
+        )}
       </section>
 
       {/* Notifications Section */}
