@@ -519,35 +519,35 @@ browser.runtime.onMessage.addListener(
             const combinedState: CombinedUpdateState = {
               directory: directoryState
                 ? {
-                    updatedCount: directoryState.updatedCount,
-                    followedCount: directoryState.followedCount,
-                    lastCheckedAt: directoryState.lastCheckedAt,
-                    isEnabled: directoryState.isEnabled,
-                    status: directoryState.status,
-                  }
+                  updatedCount: directoryState.updatedCount,
+                  followedCount: directoryState.followedCount,
+                  lastCheckedAt: directoryState.lastCheckedAt,
+                  isEnabled: directoryState.isEnabled,
+                  status: directoryState.status,
+                }
                 : null,
               community: communityState
                 ? {
-                    updatedCount: communityState.updatedCount,
-                    followedCount: communityState.followedCount,
-                    lastCheckedAt: communityState.lastCheckedAt,
-                    isEnabled: communityState.isEnabled,
-                    status: communityState.status,
-                  }
+                  updatedCount: communityState.updatedCount,
+                  followedCount: communityState.followedCount,
+                  lastCheckedAt: communityState.lastCheckedAt,
+                  isEnabled: communityState.isEnabled,
+                  status: communityState.status,
+                }
                 : null,
               custom: customState
                 ? {
-                    updatedCount: customState.updatedCount,
-                    totalCount: customState.totalCount,
-                    lastCheckedAt: customState.lastCheckedAt,
-                    blogs: customState.blogs
-                      .filter((b) => b.hasUpdates)
-                      .map((b) => ({
-                        feedUrl: b.feedUrl,
-                        title: b.title,
-                        hasUpdates: b.hasUpdates,
-                      })),
-                  }
+                  updatedCount: customState.updatedCount,
+                  totalCount: customState.totalCount,
+                  lastCheckedAt: customState.lastCheckedAt,
+                  blogs: customState.blogs
+                    .filter((b) => b.hasUpdates)
+                    .map((b) => ({
+                      feedUrl: b.feedUrl,
+                      title: b.title,
+                      hasUpdates: b.hasUpdates,
+                    })),
+                }
                 : null,
               mode: settings.extensionMode,
               totalUpdatedCount:
@@ -954,7 +954,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 // Handle notification clicks - open Blogs Are Back
 browser.notifications.onClicked.addListener((notificationId) => {
   if (notificationId === 'blog-updates') {
-    browser.tabs.create({ url: 'https://www.blogsareback.com' });
+    browser.tabs.create({ url: 'https://www.blogsareback.com/dashboard' });
     browser.notifications.clear(notificationId);
   }
 });

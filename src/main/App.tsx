@@ -24,7 +24,7 @@ export default function App() {
 
           <footer className="mt-8 pt-6 border-t border-border flex items-center justify-between">
             <a
-              href="https://www.blogsareback.com"
+              href="https://www.blogsareback.com/dashboard"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline"

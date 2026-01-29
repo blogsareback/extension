@@ -203,7 +203,7 @@ export default function Popup() {
         {/* Footer */}
         <footer className="mt-4 flex items-center justify-between">
           <a
-            href="https://www.blogsareback.com"
+            href="https://www.blogsareback.com/dashboard"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-primary hover:underline"

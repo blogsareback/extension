@@ -282,8 +282,10 @@ export async function notifyWebAppTabs(): Promise<void> {
     // Find all tabs matching Blogs Are Back URLs
     const tabs = await browser.tabs.query({
       url: [
-        'https://blogsareback.com/*',
-        'https://www.blogsareback.com/*',
+        'https://blogsareback.com/dashboard/*',
+        'https://www.blogsareback.com/dashboard/*',
+
+        // Dev mode
         'http://localhost:3000/*',
         'http://localhost:*/*',
       ],
