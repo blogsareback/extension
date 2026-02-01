@@ -30,6 +30,7 @@ import { fetchFeed } from './handlers/feed-fetch';
 import { fetchPage } from './handlers/page-fetch';
 import { extractReadableText, extractReadableHtml } from './handlers/readable-extract';
 import { discoverFeedsFromUrl } from './handlers/feed-discovery';
+import { discoverImagesFromUrl } from './handlers/discover-images';
 import { testBlogStatus } from './handlers/blog-status';
 import {
   checkDirectoryUpdatesFromAPI,
@@ -86,6 +87,8 @@ import type {
   ClearDataResponse,
   DiscoverFeedsRequest,
   DiscoverFeedsResponse,
+  DiscoverImagesRequest,
+  DiscoverImagesResponse,
   TestBlogStatusRequest,
   TestBlogStatusResponse,
   FeedsDetectedMessage,
@@ -651,6 +654,17 @@ browser.runtime.onMessage.addListener(
       if (message.type === 'DISCOVER_FEEDS') {
         const request = message as DiscoverFeedsRequest;
         discoverFeedsFromUrl(request.blogUrl, request.requestId).then(
+          (response) => {
+            sendResponse(response);
+          }
+        );
+        return true; // Async response
+      }
+
+      // Handle DISCOVER_IMAGES from web app (via content script)
+      if (message.type === 'DISCOVER_IMAGES') {
+        const request = message as DiscoverImagesRequest;
+        discoverImagesFromUrl(request.blogUrl, request.requestId).then(
           (response) => {
             sendResponse(response);
           }

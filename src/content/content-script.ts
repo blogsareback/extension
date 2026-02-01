@@ -14,6 +14,8 @@ import type {
   SyncAllBlogsRequest,
   DiscoverFeedsRequest,
   DiscoverFeedsResponse,
+  DiscoverImagesRequest,
+  DiscoverImagesResponse,
   TestBlogStatusRequest,
   TestBlogStatusResponse,
   GetAnalyticsRequest,
@@ -284,6 +286,46 @@ window.addEventListener('message', (event: MessageEvent) => {
             success: false,
             error: 'Extension context invalid. Please reload the page.',
           } as DiscoverFeedsResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle image discovery requests from web app
+  if (message.type === 'DISCOVER_IMAGES') {
+    const request = message as DiscoverImagesRequest;
+
+    console.log(
+      '[Content Script] Received image discovery request from web app:',
+      request.requestId,
+      request.blogUrl
+    );
+
+    // Forward request to service worker (Promise-based API)
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as DiscoverImagesResponse;
+        console.log(
+          '[Content Script] Received image discovery response from service worker:',
+          response.requestId,
+          response.success
+        );
+
+        // Forward response back to web app
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        console.error('[Content Script] Extension context invalid:', error);
+
+        // Send error response back to web app
+        window.postMessage(
+          {
+            type: 'DISCOVER_IMAGES_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            error: 'Extension context invalid. Please reload the page.',
+          } as DiscoverImagesResponse,
           window.location.origin
         );
       });

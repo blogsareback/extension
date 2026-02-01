@@ -348,6 +348,8 @@ export type ExtensionMessage =
   | ForceCheckCustomBlogUpdatesResponse
   | DiscoverFeedsRequest
   | DiscoverFeedsResponse
+  | DiscoverImagesRequest
+  | DiscoverImagesResponse
   | TestBlogStatusRequest
   | TestBlogStatusResponse
   | GetAnalyticsRequest
@@ -780,6 +782,38 @@ export interface DiscoverFeedsResponse {
   requestId: string;
   success: boolean;
   feeds?: DiscoveredFeed[];
+  error?: string;
+}
+
+// ============================================
+// Image Discovery Messages
+// ============================================
+
+/**
+ * Discovered images from a blog URL
+ */
+export interface DiscoveredImages {
+  siteIcon?: string;
+  ogImage?: string;
+}
+
+/**
+ * Message from web app to extension - Discover images from a blog URL
+ */
+export interface DiscoverImagesRequest {
+  type: 'DISCOVER_IMAGES';
+  blogUrl: string;
+  requestId: string;
+}
+
+/**
+ * Message from extension to web app - Discovered images response
+ */
+export interface DiscoverImagesResponse {
+  type: 'DISCOVER_IMAGES_RESPONSE';
+  requestId: string;
+  success: boolean;
+  images?: DiscoveredImages;
   error?: string;
 }
 
