@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Blogs Are Back - Feed Fetcher",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Fetch RSS/Atom feeds directly from your browser for Blogs Are Back",
   "permissions": ["storage", "contextMenus", "tabs", "notifications", "alarms"],
   "host_permissions": ["<all_urls>"],
@@ -11,10 +11,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://blogsareback.com/*",
-        "https://www.blogsareback.com/*"
-      ],
+      "matches": ["https://blogsareback.com/*", "https://*.blogsareback.com/*"],
       "js": ["content-script.js"],
       "run_at": "document_start"
     },
@@ -45,10 +42,7 @@
   "web_accessible_resources": [
     {
       "resources": ["injected-script.js", "assets/*"],
-      "matches": [
-        "https://blogsareback.com/*",
-        "https://www.blogsareback.com/*"
-      ]
+      "matches": ["https://blogsareback.com/*", "https://*.blogsareback.com/*"]
     }
   ]
 }
