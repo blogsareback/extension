@@ -357,7 +357,11 @@ export type ExtensionMessage =
   | GetUpdateStateRequest
   | GetUpdateStateResponse
   | AcknowledgeUpdatesRequest
-  | AcknowledgeUpdatesResponse;
+  | AcknowledgeUpdatesResponse
+  | FetchFeedsBatchRequest
+  | FetchFeedsBatchResponse
+  | DiscoverImagesBatchRequest
+  | DiscoverImagesBatchResponse;
 
 // Statistics tracking
 
@@ -610,8 +614,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   extensionMode: 'basic', // Default to basic mode (conservative)
   feedDiscoveryEnabled: true,
   showBadgeCount: true,
-  floatingButtonEnabled: true,
-  stricterFeedRecognition: false, // Off by default for broader feed detection
+  floatingButtonEnabled: false, // Disabled by default - users can enable in popup or settings
+  stricterFeedRecognition: true, // On by default for stricter feed detection
 
   // Floating button customization defaults
   floatingButtonStyle: 'minimal', // original default: 'solid'
@@ -943,6 +947,98 @@ export interface AcknowledgeUpdatesResponse {
   /** Number of updates that were acknowledged */
   acknowledgedCount?: number;
   error?: string;
+}
+
+// ============================================
+// Batch Feed Fetching Messages
+// ============================================
+
+/**
+ * Single feed item in a batch request
+ */
+export interface BatchFeedItem {
+  feedUrl: string;
+  /** Optional: hint about whether proxy is needed (for future optimization) */
+  requiresProxy?: boolean;
+}
+
+/**
+ * Result for a single feed in a batch response
+ */
+export interface BatchFeedResult {
+  feedUrl: string;
+  success: boolean;
+  data?: string;
+  error?: string;
+  status?: number;
+}
+
+/**
+ * Message from web app to extension - Batch feed fetching
+ */
+export interface FetchFeedsBatchRequest {
+  type: 'FETCH_FEEDS_BATCH';
+  feeds: BatchFeedItem[];
+  requestId: string;
+  /** Maximum concurrent requests (default: 10) */
+  maxConcurrent?: number;
+}
+
+/**
+ * Message from extension to web app - Batch feed response
+ */
+export interface FetchFeedsBatchResponse {
+  type: 'FEEDS_BATCH_RESPONSE';
+  requestId: string;
+  success: boolean;
+  results: BatchFeedResult[];
+  /** Total feeds processed */
+  totalProcessed: number;
+  /** Number of successful fetches */
+  successCount: number;
+  /** Number of failed fetches */
+  errorCount: number;
+}
+
+// ============================================
+// Batch Image Discovery Messages
+// ============================================
+
+/**
+ * Result for a single URL in batch image discovery
+ */
+export interface BatchImageResult {
+  blogUrl: string;
+  success: boolean;
+  images?: DiscoveredImages;
+  error?: string;
+}
+
+/**
+ * Message from web app to extension - Batch image discovery
+ */
+export interface DiscoverImagesBatchRequest {
+  type: 'DISCOVER_IMAGES_BATCH';
+  blogUrls: string[];
+  requestId: string;
+  /** Maximum concurrent requests (default: 5) */
+  maxConcurrent?: number;
+}
+
+/**
+ * Message from extension to web app - Batch image discovery response
+ */
+export interface DiscoverImagesBatchResponse {
+  type: 'DISCOVER_IMAGES_BATCH_RESPONSE';
+  requestId: string;
+  success: boolean;
+  results: BatchImageResult[];
+  /** Total URLs processed */
+  totalProcessed: number;
+  /** Number of successful discoveries */
+  successCount: number;
+  /** Number of failed discoveries */
+  errorCount: number;
 }
 
 // ============================================

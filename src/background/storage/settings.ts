@@ -11,14 +11,14 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   extensionMode: 'basic', // Default to basic mode (conservative)
   feedDiscoveryEnabled: true,
   showBadgeCount: true,
-  floatingButtonEnabled: true,
+  floatingButtonEnabled: false, // Disabled by default - users can enable in popup or settings
   stricterFeedRecognition: false, // Off by default for broader feed detection
   // Floating button customization defaults
-  floatingButtonStyle: 'solid',
+  floatingButtonStyle: 'minimal', // original default: 'solid'
   floatingButtonPosition: 'bottom-right',
-  floatingButtonBehavior: 'always',
+  floatingButtonBehavior: 'article-end', // original default: 'always'
   floatingButtonShowDelay: 0, // Show immediately
-  floatingButtonOnlyArticles: false, // Show on all pages with feeds
+  floatingButtonOnlyArticles: true, // Show on article pages only
   // Notifications
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,

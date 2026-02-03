@@ -196,7 +196,7 @@ interface FloatingButtonSettings {
 const DEFAULT_FLOATING_BUTTON_SETTINGS: FloatingButtonSettings = {
   extensionMode: 'basic',
   feedDiscoveryEnabled: true,
-  floatingButtonEnabled: true,
+  floatingButtonEnabled: false, // Disabled by default - users can enable in popup or settings
   stricterFeedRecognition: false,
   floatingButtonStyle: 'solid',
   floatingButtonPosition: 'bottom-right',

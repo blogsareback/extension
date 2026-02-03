@@ -31,6 +31,8 @@ import { fetchPage } from './handlers/page-fetch';
 import { extractReadableText, extractReadableHtml } from './handlers/readable-extract';
 import { discoverFeedsFromUrl } from './handlers/feed-discovery';
 import { discoverImagesFromUrl } from './handlers/discover-images';
+import { discoverImagesBatch } from './handlers/discover-images-batch';
+import { fetchFeedsBatch } from './handlers/feed-fetch-batch';
 import { testBlogStatus } from './handlers/blog-status';
 import {
   checkDirectoryUpdatesFromAPI,
@@ -102,6 +104,10 @@ import type {
   CombinedUpdateState,
   AcknowledgeUpdatesRequest,
   AcknowledgeUpdatesResponse,
+  FetchFeedsBatchRequest,
+  FetchFeedsBatchResponse,
+  DiscoverImagesBatchRequest,
+  DiscoverImagesBatchResponse,
 } from '../utils/types';
 
 // ============================================
@@ -669,6 +675,57 @@ browser.runtime.onMessage.addListener(
             sendResponse(response);
           }
         );
+        return true; // Async response
+      }
+
+      // Handle DISCOVER_IMAGES_BATCH from web app (via content script)
+      // Batch image discovery for multiple blogs at once
+      if (message.type === 'DISCOVER_IMAGES_BATCH') {
+        const request = message as DiscoverImagesBatchRequest;
+
+        console.log(
+          '[Service Worker] Received batch image discovery request:',
+          request.requestId,
+          `${request.blogUrls.length} URLs`
+        );
+
+        discoverImagesBatch(request).then((response) => {
+          sendResponse(response);
+        });
+
+        return true; // Async response
+      }
+
+      // Handle FETCH_FEEDS_BATCH from web app (via content script)
+      // Batch feed fetching for multiple feeds at once
+      if (message.type === 'FETCH_FEEDS_BATCH') {
+        const request = message as FetchFeedsBatchRequest;
+
+        console.log(
+          '[Service Worker] Received batch feed fetch request:',
+          request.requestId,
+          `${request.feeds.length} feeds`
+        );
+
+        const startTime = Date.now();
+        fetchFeedsBatch(request).then((result) => {
+          const responseTimeMs = Date.now() - startTime;
+
+          console.log(
+            `[Service Worker] Batch feed fetch completed in ${responseTimeMs}ms:`,
+            `${result.successCount} succeeded, ${result.errorCount} failed`
+          );
+
+          // Update analytics for batch operations
+          updateAnalytics({
+            operationType: 'feedFetch',
+            success: result.errorCount === 0,
+            // Note: We don't have detailed per-feed error categories for batch
+          });
+
+          sendResponse(result);
+        });
+
         return true; // Async response
       }
 

@@ -8,6 +8,7 @@ import ThemeToggle from '@/components/theme-toggle';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Settings } from 'lucide-react';
 import { useDiscoveredFeeds } from './hooks/useDiscoveredFeeds';
 import { useSubscriptionQueue } from './hooks/useSubscriptionQueue';
@@ -117,6 +118,25 @@ export default function Popup() {
           loading={settingsLoading}
           onChange={(mode) => updateSettings({ extensionMode: mode })}
         />
+
+        {/* Floating Button Toggle - only show in featured mode with feed discovery enabled */}
+        {isFeaturedMode && settings.feedDiscoveryEnabled && (
+          <div className="flex items-center justify-between py-2 mb-2">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">Floating follow button</span>
+              <span className="text-xs text-muted-foreground">
+                Show on pages with feeds
+              </span>
+            </div>
+            <Switch
+              checked={settings.floatingButtonEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ floatingButtonEnabled: checked })
+              }
+              disabled={settingsLoading}
+            />
+          </div>
+        )}
 
         <Separator className="mb-4" />
 

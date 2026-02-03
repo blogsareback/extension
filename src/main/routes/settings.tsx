@@ -88,6 +88,8 @@ export default function SettingsRoute() {
     useSettings()
   const [clearing, setClearing] = useState<string | null>(null)
 
+  const isFeaturedMode = settings.extensionMode === 'featured'
+
   const toggleAdvanced = () => {
     updateSettings({ advancedSettingsExpanded: !settings.advancedSettingsExpanded })
   }
@@ -160,7 +162,9 @@ export default function SettingsRoute() {
             <ItemContent>
               <ItemTitle>Floating subscribe button</ItemTitle>
               <ItemDescription>
-                Show a subscribe button on pages with RSS feeds
+                {!isFeaturedMode
+                  ? 'Requires Featured mode to be enabled'
+                  : 'Show a subscribe button on pages with RSS feeds'}
               </ItemDescription>
             </ItemContent>
             <ItemActions>
@@ -169,7 +173,7 @@ export default function SettingsRoute() {
                 onCheckedChange={(checked) =>
                   updateSettings({ floatingButtonEnabled: checked })
                 }
-                disabled={!settings.feedDiscoveryEnabled}
+                disabled={!settings.feedDiscoveryEnabled || !isFeaturedMode}
               />
             </ItemActions>
           </Item>
@@ -193,8 +197,8 @@ export default function SettingsRoute() {
           </Item>
         </ItemGroup>
 
-        {/* Floating Button Customization - only show when button is enabled */}
-        {settings.feedDiscoveryEnabled && settings.floatingButtonEnabled && (
+        {/* Floating Button Customization - only show when button is enabled and in featured mode */}
+        {isFeaturedMode && settings.feedDiscoveryEnabled && settings.floatingButtonEnabled && (
           <div className="mt-4">
             <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
               Button Appearance
