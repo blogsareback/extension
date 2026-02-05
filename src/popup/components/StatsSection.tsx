@@ -54,8 +54,8 @@ function OperationRow({
   // Get non-zero error categories
   const errorCategories = hasErrors
     ? (Object.entries(stats.errorsByCategory) as [ErrorCategory, number][])
-        .filter(([, count]) => count > 0)
-        .sort((a, b) => b[1] - a[1])
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
     : [];
 
   return (
@@ -200,7 +200,7 @@ export function StatsSection({ stats }: StatsSectionProps) {
   );
 
   return (
-    <div className="mt-2 space-y-3">
+    <div className="mt-2 space-y-3 min-w-0 overflow-hidden">
       {/* Aggregate summary */}
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="bg-muted/50 rounded p-2">
@@ -209,11 +209,10 @@ export function StatsSection({ stats }: StatsSectionProps) {
         </div>
         <div className="bg-muted/50 rounded p-2">
           <div
-            className={`text-lg font-semibold ${
-              aggregate.errors > 0
+            className={`text-lg font-semibold ${aggregate.errors > 0
                 ? 'text-yellow-600 dark:text-yellow-400'
                 : 'text-green-600 dark:text-green-400'
-            }`}
+              }`}
           >
             {aggregate.successRate.toFixed(0)}%
           </div>
@@ -221,11 +220,10 @@ export function StatsSection({ stats }: StatsSectionProps) {
         </div>
         <div className="bg-muted/50 rounded p-2">
           <div
-            className={`text-lg font-semibold ${
-              aggregate.errors > 0
+            className={`text-lg font-semibold ${aggregate.errors > 0
                 ? 'text-red-600 dark:text-red-400'
                 : ''
-            }`}
+              }`}
           >
             {aggregate.errors}
           </div>

@@ -2,6 +2,8 @@ import browser from '../utils/browser';
 import type {
   FetchFeedRequest,
   FeedResponse,
+  FetchFeedsBatchRequest,
+  FetchFeedsBatchResponse,
   FetchPageRequest,
   FetchPageResponse,
   ExtractReadableTextRequest,
@@ -16,10 +18,14 @@ import type {
   DiscoverFeedsResponse,
   DiscoverImagesRequest,
   DiscoverImagesResponse,
+  DiscoverImagesBatchRequest,
+  DiscoverImagesBatchResponse,
   TestBlogStatusRequest,
   TestBlogStatusResponse,
   GetAnalyticsRequest,
   GetAnalyticsResponse,
+  AcknowledgeUpdatesRequest,
+  AcknowledgeUpdatesResponse,
 } from '../utils/types';
 // Version injected at build time from package.json (see vite.config.ts)
 const EXTENSION_VERSION = __EXTENSION_VERSION__;
@@ -91,6 +97,53 @@ window.addEventListener('message', (event: MessageEvent) => {
             success: false,
             error: 'Extension context invalid. Please reload the page.',
           } as FeedResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle batch feed fetch requests
+  if (message.type === 'FETCH_FEEDS_BATCH') {
+    const request = message as FetchFeedsBatchRequest;
+
+    console.log(
+      '[Content Script] Received batch feed fetch request from web app:',
+      request.requestId,
+      request.feeds.length,
+      'feeds'
+    );
+
+    // Forward request to service worker (Promise-based API)
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as FetchFeedsBatchResponse;
+        console.log(
+          '[Content Script] Received batch feed response from service worker:',
+          response.requestId,
+          response.successCount,
+          '/',
+          response.totalProcessed
+        );
+
+        // Forward response back to web app
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        console.error('[Content Script] Extension context invalid:', error);
+
+        // Send error response back to web app
+        window.postMessage(
+          {
+            type: 'FEEDS_BATCH_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            results: [],
+            totalProcessed: 0,
+            successCount: 0,
+            errorCount: request.feeds.length,
+            error: 'Extension context invalid. Please reload the page.',
+          } as FetchFeedsBatchResponse,
           window.location.origin
         );
       });
@@ -331,6 +384,53 @@ window.addEventListener('message', (event: MessageEvent) => {
       });
   }
 
+  // Handle batch image discovery requests from web app
+  if (message.type === 'DISCOVER_IMAGES_BATCH') {
+    const request = message as DiscoverImagesBatchRequest;
+
+    console.log(
+      '[Content Script] Received batch image discovery request from web app:',
+      request.requestId,
+      request.blogUrls.length,
+      'blogs'
+    );
+
+    // Forward request to service worker (Promise-based API)
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as DiscoverImagesBatchResponse;
+        console.log(
+          '[Content Script] Received batch image discovery response from service worker:',
+          response.requestId,
+          response.successCount,
+          '/',
+          response.totalProcessed
+        );
+
+        // Forward response back to web app
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        console.error('[Content Script] Extension context invalid:', error);
+
+        // Send error response back to web app
+        window.postMessage(
+          {
+            type: 'DISCOVER_IMAGES_BATCH_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            results: [],
+            totalProcessed: 0,
+            successCount: 0,
+            errorCount: request.blogUrls.length,
+            error: 'Extension context invalid. Please reload the page.',
+          } as DiscoverImagesBatchResponse,
+          window.location.origin
+        );
+      });
+  }
+
   // Handle blog status testing requests from web app
   if (message.type === 'TEST_BLOG_STATUS') {
     const request = message as TestBlogStatusRequest;
@@ -405,6 +505,47 @@ window.addEventListener('message', (event: MessageEvent) => {
             success: false,
             error: 'Extension context invalid. Please reload the page.',
           } as GetAnalyticsResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle acknowledge updates requests from web app
+  // This clears the badge and resets update counts when user has seen updates
+  if (message.type === 'ACKNOWLEDGE_UPDATES') {
+    const request = message as AcknowledgeUpdatesRequest;
+
+    console.log(
+      '[Content Script] Received acknowledge updates request from web app:',
+      request.requestId,
+      request.sources
+    );
+
+    // Forward request to service worker (Promise-based API)
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as AcknowledgeUpdatesResponse;
+        console.log(
+          '[Content Script] Received acknowledge updates response from service worker:',
+          response.requestId,
+          response.success
+        );
+
+        // Forward response back to web app
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        console.error('[Content Script] Extension context invalid:', error);
+
+        // Send error response back to web app
+        window.postMessage(
+          {
+            type: 'ACKNOWLEDGE_UPDATES_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            error: 'Extension context invalid. Please reload the page.',
+          } as AcknowledgeUpdatesResponse,
           window.location.origin
         );
       });

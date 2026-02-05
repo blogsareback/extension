@@ -10,3 +10,7 @@ dist/
 # It's 2026
 CLAUDE.md
 .claude/
+
+# web-ext
+web-ext-profile/
+web-ext-artifacts/

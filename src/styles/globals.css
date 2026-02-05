@@ -1,21 +1,8 @@
-@import "tailwindcss";
-
+@import 'tailwindcss';
 @plugin "tailwindcss-animate";
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
-
-@layer base {
-  :root {
-    color-scheme: light dark;
-  }
-
-  body {
-    @apply bg-white dark:bg-neutral-900;
-    @apply text-neutral-900 dark:text-neutral-100;
-    @apply antialiased;
-  }
-}
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -125,10 +112,27 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Firefox-only popup fix */
+  @-moz-document url-prefix() {
+    html,
+    body {
+      width: 360px;
+      max-width: 360px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      /* scrollbar-gutter: stable; Keeps layout consistent */
+    }
   }
 }

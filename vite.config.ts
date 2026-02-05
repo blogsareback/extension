@@ -43,10 +43,28 @@ function bundleContentScripts(): Plugin {
   };
 }
 
+// Localhost patterns to inject in development builds (browser-specific)
+const chromeLocalhostPatterns = [
+  'http://localhost:3000/*',
+  'http://localhost/*',
+];
+
+const firefoxLocalhostPatterns = [
+  'http://localhost:3000/*',
+  'http://localhost:3000/',
+  'http://localhost/*',
+];
+
+// Get the appropriate patterns for the target browser
+const localhostPatterns = targetBrowser === 'firefox'
+  ? firefoxLocalhostPatterns
+  : chromeLocalhostPatterns;
+
 /**
- * Plugin to copy the correct manifest based on target browser and inject version
+ * Plugin to copy the correct manifest based on target browser and inject version.
+ * In development mode, also injects localhost patterns for local testing.
  */
-function copyBrowserManifest(): Plugin {
+function copyBrowserManifest(isDev: boolean): Plugin {
   return {
     name: 'copy-browser-manifest',
     writeBundle() {
@@ -58,6 +76,20 @@ function copyBrowserManifest(): Plugin {
       // Read the manifest, inject version from package.json, and write to output
       const manifest = JSON.parse(fs.readFileSync(manifestSource, 'utf-8'));
       manifest.version = extensionVersion;
+
+      // In development mode, inject localhost patterns for local testing
+      if (isDev) {
+        // Add to content_scripts matches (first content script is the main one)
+        if (manifest.content_scripts?.[0]?.matches) {
+          manifest.content_scripts[0].matches.push(...localhostPatterns);
+        }
+        // Add to web_accessible_resources matches
+        if (manifest.web_accessible_resources?.[0]?.matches) {
+          manifest.web_accessible_resources[0].matches.push(...localhostPatterns);
+        }
+        console.log(`[vite] Injected localhost patterns for development`);
+      }
+
       fs.writeFileSync(manifestDest, JSON.stringify(manifest, null, 2));
       console.log(`[vite] Built ${targetBrowser} manifest with version ${extensionVersion}`);
 
@@ -70,13 +102,13 @@ function copyBrowserManifest(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [
     react(),
     tailwindcss(),
     bundleContentScripts(),
-    copyBrowserManifest(),
+    copyBrowserManifest(mode === 'development'),
   ],
   define: {
     // Inject version from package.json at build time
@@ -137,4 +169,4 @@ export default defineConfig({
     },
     emptyOutDir: true, // Clear the output directory on build
   },
-});
+}));

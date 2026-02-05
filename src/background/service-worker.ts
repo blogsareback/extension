@@ -58,6 +58,7 @@ import {
   updateBadge,
   markShownForSession,
   hasShownThisSession,
+  createOptionsContextMenu,
 } from './handlers/feeds-detected';
 
 // Types
@@ -589,8 +590,11 @@ browser.runtime.onMessage.addListener(
       if (message.type === 'ACKNOWLEDGE_UPDATES') {
         const request = message as AcknowledgeUpdatesRequest;
 
+        console.log('[Service Worker] Received acknowledge updates request:', request);
+
         acknowledgeUpdates(request.sources)
           .then((acknowledgedCount) => {
+            console.log('[Service Worker] Acknowledged updates:', acknowledgedCount);
             sendResponse({
               type: 'ACKNOWLEDGE_UPDATES_RESPONSE',
               requestId: request.requestId,
@@ -599,6 +603,7 @@ browser.runtime.onMessage.addListener(
             } as AcknowledgeUpdatesResponse);
           })
           .catch((error) => {
+            console.error('[Service Worker] Error acknowledging updates:', error);
             sendResponse({
               type: 'ACKNOWLEDGE_UPDATES_RESPONSE',
               requestId: request.requestId,
@@ -955,6 +960,9 @@ browser.runtime.onMessage.addListener(
 );
 
 console.log('[Service Worker] Blogs Are Back extension loaded');
+
+// Create the "Options" context menu for the extension icon
+createOptionsContextMenu();
 
 // ============================================
 // Startup & Periodic Directory Updates Check

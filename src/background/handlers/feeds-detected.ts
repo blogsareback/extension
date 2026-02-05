@@ -11,6 +11,11 @@ import {
   FEED_DISCOVERY_BADGE_COLOR,
   PROBE_CACHE_TTL_MS,
 } from '../utils/constants';
+
+// Context menu IDs
+const SETTINGS_MENU_ID = 'blogs-are-back-settings';
+const FEED_PARENT_MENU_ID = 'blogs-are-back-parent';
+const FEED_MENU_PREFIX = 'subscribe-feed-';
 import { normalizeUrl } from '../utils/fetch';
 import { getSettings } from '../storage/settings';
 import { probeCommonPaths } from './feed-probe';
@@ -71,6 +76,24 @@ function getDomainFromUrl(url: string): string {
 }
 
 /**
+ * Create the "Settings" context menu item that appears when right-clicking the extension icon.
+ * This should be called once at service worker startup.
+ */
+export function createOptionsContextMenu(): void {
+  try {
+    browser.contextMenus.create({
+      id: SETTINGS_MENU_ID,
+      title: 'Settings',
+      contexts: ['action'], // Appears when right-clicking the extension icon
+    });
+    console.log('[Service Worker] Created Settings context menu');
+  } catch (error) {
+    // Menu might already exist if service worker was restarted
+    console.log('[Service Worker] Settings context menu already exists or failed:', error);
+  }
+}
+
+/**
  * Update browser action badge with feed count
  */
 export async function updateBadge(tabId: number, feedCount: number): Promise<void> {
@@ -98,15 +121,21 @@ export async function updateBadge(tabId: number, feedCount: number): Promise<voi
 }
 
 /**
- * Create/update context menus for discovered feeds
+ * Create/update context menus for discovered feeds.
+ * Preserves the "Settings" menu item that appears on the extension icon.
  */
 export async function updateContextMenus(
   tabId: number,
   feeds: FeedLink[]
 ): Promise<void> {
   try {
-    // Remove all existing context menus
-    await browser.contextMenus.removeAll();
+    // Remove only feed-related menus (preserve Options menu)
+    // First, try to remove the parent menu (which cascades to children)
+    try {
+      await browser.contextMenus.remove(FEED_PARENT_MENU_ID);
+    } catch {
+      // Menu might not exist yet, that's fine
+    }
 
     if (feeds.length === 0) {
       return;
@@ -114,7 +143,7 @@ export async function updateContextMenus(
 
     // Create parent menu item
     browser.contextMenus.create({
-      id: 'blogs-are-back-parent',
+      id: FEED_PARENT_MENU_ID,
       title: 'Subscribe to feed',
       contexts: ['page', 'link'],
     });
@@ -122,11 +151,11 @@ export async function updateContextMenus(
     // Add menu items for each feed
     feeds.forEach((feed, index) => {
       const feedTitle = feed.title || 'Untitled Feed';
-      const menuId = `subscribe-feed-${index}`;
+      const menuId = `${FEED_MENU_PREFIX}${index}`;
 
       browser.contextMenus.create({
         id: menuId,
-        parentId: 'blogs-are-back-parent',
+        parentId: FEED_PARENT_MENU_ID,
         title: feedTitle,
         contexts: ['page', 'link'],
       });
@@ -313,13 +342,23 @@ export async function notifyWebAppTabs(): Promise<void> {
 }
 
 /**
- * Handle context menu click for subscribing to a feed
+ * Handle context menu click for subscribing to a feed or opening settings
  */
 export async function handleContextMenuClick(
   info: Menus.OnClickData,
   tab: Tabs.Tab | undefined
 ): Promise<void> {
-  if (!tab?.id || !info.menuItemId.toString().startsWith('subscribe-feed-')) {
+  const menuId = info.menuItemId.toString();
+
+  // Handle Settings menu click (opens settings page)
+  if (menuId === SETTINGS_MENU_ID) {
+    const settingsUrl = browser.runtime.getURL('src/main/main.html#/settings');
+    await browser.tabs.create({ url: settingsUrl });
+    return;
+  }
+
+  // Handle feed subscription menu clicks
+  if (!tab?.id || !menuId.startsWith(FEED_MENU_PREFIX)) {
     return;
   }
 
@@ -331,7 +370,7 @@ export async function handleContextMenuClick(
 
   // Extract feed index from menu item ID
   const feedIndex = parseInt(
-    info.menuItemId.toString().replace('subscribe-feed-', ''),
+    menuId.replace(FEED_MENU_PREFIX, ''),
     10
   );
   const feed = tabData.feeds[feedIndex];

@@ -102,7 +102,7 @@ export default function Popup() {
 
   return (
     <ThemeProvider>
-      <div className="w-[360px] p-4 bg-background">
+      <div className="w-[360px] py-4 px-6 flex flex-col">
         {/* Header */}
         <header className="flex items-start justify-between mb-4">
           <div>
@@ -211,7 +211,7 @@ export default function Popup() {
         )}
 
         {/* Stats Section (Collapsible) */}
-        <details className="mt-4">
+        <details className="mt-4 overflow-hidden">
           <summary className="text-sm font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors">
             Statistics
           </summary>
