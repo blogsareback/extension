@@ -4,6 +4,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import type { CustomBlogUpdatesState } from '@/utils/types'
 import { BlogTitleList } from './BlogTitleList'
+import { DASHBOARD_BASE_URL } from '@/background/utils/constants'
 
 interface CustomBlogUpdatesSectionProps {
   state: CustomBlogUpdatesState | null
@@ -56,7 +57,7 @@ export function CustomBlogUpdatesSection({
         <p className="text-xs text-muted-foreground">
           Open{' '}
           <a
-            href="https://www.blogsareback.com"
+            href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline inline-flex items-center gap-0.5"
@@ -84,7 +85,7 @@ export function CustomBlogUpdatesSection({
         <p className="text-xs text-muted-foreground">
           No custom blogs added.{' '}
           <a
-            href="https://blogsareback.com"
+            href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
@@ -187,7 +188,7 @@ export function CustomBlogUpdatesSection({
           />
         ) : (
           <a
-            href="https://blogsareback.com"
+            href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-primary hover:underline"

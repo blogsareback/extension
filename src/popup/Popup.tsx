@@ -17,11 +17,14 @@ import { useCustomBlogUpdates } from './hooks/useCustomBlogUpdates';
 import { useSettings } from './hooks/useSettings';
 import { FeedList } from './components/FeedList';
 import { QueueSummary } from './components/QueueSummary';
+import { SavedPostsSummary } from './components/SavedPostsSummary';
+import { useSavedPostsCount } from './hooks/useSavedPostsCount';
 import { CatalogUpdatesSection } from './components/CatalogUpdatesSection';
 import { CustomBlogUpdatesSection } from './components/CustomBlogUpdatesSection';
 import { ModeSelector } from './components/ModeSelector';
 import { StatsSection } from './components/StatsSection';
 import { EXTENSION_VERSION } from '@/utils/constants';
+import { DASHBOARD_BASE_URL } from '@/background/utils/constants';
 
 /** Check if stats object is legacy format */
 function isLegacyStats(stats: unknown): stats is LegacyFetchStats {
@@ -75,6 +78,8 @@ export default function Popup() {
     loading: settingsLoading,
     updateSettings,
   } = useSettings();
+  const { count: savedPostsCount, loading: savedPostsLoading } =
+    useSavedPostsCount();
   const [stats, setStats] = React.useState<FetchStats>(createEmptyStats);
 
   const isFeaturedMode = settings.extensionMode === 'featured';
@@ -178,6 +183,22 @@ export default function Popup() {
 
         <Separator />
 
+        {/* Saved Posts Summary */}
+        <section className="my-4">
+          {savedPostsLoading ? (
+            <div className="flex items-center gap-2">
+              <Spinner className="size-4" />
+              <span className="text-sm text-muted-foreground">
+                Loading saved posts...
+              </span>
+            </div>
+          ) : (
+            <SavedPostsSummary count={savedPostsCount} />
+          )}
+        </section>
+
+        <Separator />
+
         {/* Blog Updates Sections (Featured Mode Only) */}
         {isFeaturedMode && (
           <>
@@ -223,7 +244,7 @@ export default function Popup() {
         {/* Footer */}
         <footer className="mt-4 flex items-center justify-between">
           <a
-            href="https://www.blogsareback.com/dashboard"
+            href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-primary hover:underline"

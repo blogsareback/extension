@@ -2,6 +2,14 @@
 @plugin "tailwindcss-animate";
 @import 'tw-animate-css';
 
+/* Merriweather font for prose/reader (latin subset, normal + italic, 400 + 700) */
+@import '@fontsource/merriweather/latin-400.css';
+@import '@fontsource/merriweather/latin-400-italic.css';
+@import '@fontsource/merriweather/latin-700.css';
+@import '@fontsource/merriweather/latin-700-italic.css';
+
+@import './prose.css';
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -121,7 +129,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 
   /* Firefox-only popup fix */
@@ -135,4 +143,12 @@
       /* scrollbar-gutter: stable; Keeps layout consistent */
     }
   }
+}
+
+/* Item groups: remove individual item rounding, auto-add dividers */
+[data-slot='item-group'] > [data-slot='item'] {
+  border-radius: 0;
+}
+[data-slot='item-group'] > [data-slot='item'] + [data-slot='item'] {
+  border-top-color: var(--border);
 }

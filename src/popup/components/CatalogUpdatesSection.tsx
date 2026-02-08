@@ -5,6 +5,7 @@ import { ExternalLink, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import type { CatalogSourceUpdatesState } from '@/utils/types';
 import { BlogTitleList } from './BlogTitleList';
+import { DASHBOARD_BASE_URL } from '@/background/utils/constants'
 
 interface CatalogUpdatesSectionProps {
   directoryState: CatalogSourceUpdatesState | null;
@@ -67,7 +68,7 @@ export function CatalogUpdatesSection({
         <p className="text-xs text-muted-foreground">
           Open{' '}
           <a
-            href="https://www.blogsareback.com"
+            href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline inline-flex items-center gap-0.5"
@@ -92,7 +93,7 @@ export function CatalogUpdatesSection({
         <p className="text-xs text-muted-foreground">
           Open{' '}
           <a
-            href="https://www.blogsareback.com"
+            href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline inline-flex items-center gap-0.5"
@@ -118,7 +119,7 @@ export function CatalogUpdatesSection({
         <p className="text-xs text-muted-foreground">
           No catalog blogs followed.{' '}
           <a
-            href="https://blogsareback.com/explore"
+            href={`${DASHBOARD_BASE_URL}/explore`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
@@ -207,7 +208,7 @@ export function CatalogUpdatesSection({
 
       {hasUpdates && allUpdatedBlogs.length === 0 && (
         <a
-          href="https://www.blogsareback.com"
+          href={DASHBOARD_BASE_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-primary hover:underline"

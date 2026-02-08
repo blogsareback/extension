@@ -31,7 +31,7 @@ export function FeedList({
 }: FeedListProps) {
   return (
     <ItemGroup className="rounded-md border border-border">
-      {feeds.map((feed, index) => {
+      {feeds.map((feed) => {
         const isSubscribing = subscribingFeed === feed.href;
         const feedTitle = feed.title || 'Untitled Feed';
         const feedType = getFeedTypeLabel(feed.type);
@@ -40,7 +40,6 @@ export function FeedList({
           <Item
             key={feed.href}
             size="sm"
-            className={index > 0 ? 'border-t border-border' : ''}
           >
             <ItemContent>
               <ItemTitle>

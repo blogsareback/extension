@@ -103,10 +103,9 @@ export default function HiddenSitesRoute() {
                 </div>
               </div>
               <ItemGroup className="rounded-lg border border-border">
-                {sites.map((site, index) => (
+                {sites.map((site) => (
                   <Item
                     key={site}
-                    className={index > 0 ? 'border-t border-border' : ''}
                   >
                     <ItemContent>
                       <ItemTitle className="font-mono text-sm">{site}</ItemTitle>

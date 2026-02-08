@@ -33,12 +33,15 @@ export const STORAGE_KEY_FLOATING_BUTTON_DISMISSED = 'floatingButtonDismissed'; 
 // Analytics configuration
 export const ANALYTICS_MAX_DAILY_RECORDS = 30; // Keep 30 days of daily stats
 
+// Web app base URL
+export const BASE_URL = 'https://www.blogsareback.com';
+
 // Dashboard URL for opening blog in new tab
-export const DASHBOARD_BASE_URL = 'https://www.blogsareback.com/dashboard';
+export const DASHBOARD_BASE_URL = `${BASE_URL}/dashboard`;
 
 // API endpoints
-export const DIRECTORY_UPDATES_API = 'https://www.blogsareback.com/api/directory/updates';
-export const COMMUNITY_UPDATES_API = 'https://www.blogsareback.com/api/community/updates';
+export const DIRECTORY_UPDATES_API = `${BASE_URL}/api/directory/updates`;
+export const COMMUNITY_UPDATES_API = `${BASE_URL}/api/community/updates`;
 
 // Cache TTL for catalog updates (5 minutes, matches server CDN cache)
 export const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -81,3 +84,11 @@ export const FEED_CACHE_MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB total cache s
 
 // HEAD request configuration (for custom blog update checking)
 export const HEAD_REQUEST_TIMEOUT = 5000; // 5 seconds for HEAD requests
+
+// Saved posts configuration (IndexedDB)
+export const SAVED_POSTS_DB_NAME = 'bab-saved-posts';
+export const SAVED_POSTS_DB_VERSION = 1;
+export const SAVED_POSTS_STORE_NAME = 'posts';
+export const SAVED_POSTS_MAX_COUNT = 500;
+export const SAVED_POSTS_MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200MB
+export const SAVED_POST_MIN_FULL_CONTENT_LENGTH = 500; // Minimum chars to consider RSS content "full"

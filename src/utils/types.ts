@@ -361,7 +361,27 @@ export type ExtensionMessage =
   | FetchFeedsBatchRequest
   | FetchFeedsBatchResponse
   | DiscoverImagesBatchRequest
-  | DiscoverImagesBatchResponse;
+  | DiscoverImagesBatchResponse
+  | SavePostOfflineRequest
+  | SavePostOfflineResponse
+  | IsPostSavedRequest
+  | IsPostSavedResponse
+  | DeleteSavedPostRequest
+  | DeleteSavedPostResponse
+  | GetSavedPostsCountRequest
+  | SavedPostsCountResponse
+  | ReextractSavedPostRequest
+  | ReextractSavedPostResponse
+  | GetAllSavedPostsRequest
+  | AllSavedPostsResponse
+  | GetAllSavedPostGuidsRequest
+  | AllSavedPostGuidsResponse
+  | GetSavedPostRequest
+  | SavedPostResponse
+  | ExportSavedPostsRequest
+  | ExportSavedPostsResponse
+  | ImportSavedPostsRequest
+  | ImportSavedPostsResponse;
 
 // Statistics tracking
 
@@ -1075,6 +1095,185 @@ export interface FetchFeedOptions {
   skipCache?: boolean;
   /** Custom timeout in ms */
   timeout?: number;
+}
+
+// ============================================
+// Saved Posts (Offline Reading) Messages
+// ============================================
+
+/**
+ * Data sent from web app to save a post offline
+ */
+export interface SavePostData {
+  guid: string;
+  link: string;
+  title: string;
+  author?: string;
+  pubDate: number | null; // ms timestamp
+  description?: string;
+  image?: string;
+  blogId?: string;
+  blogTitle?: string;
+  blogIcon?: string;
+  blogFeedUrl?: string;
+  rssContent?: string; // Optional HTML content from RSS feed
+}
+
+/** Message from web app to extension - Save a post for offline reading */
+export interface SavePostOfflineRequest {
+  type: 'SAVE_POST_OFFLINE';
+  requestId: string;
+  post: SavePostData;
+}
+
+/** Message from extension to web app - Save post response */
+export interface SavePostOfflineResponse {
+  type: 'SAVE_POST_OFFLINE_RESPONSE';
+  requestId: string;
+  success: boolean;
+  alreadySaved?: boolean;
+  error?: string;
+}
+
+/** Message from web app to extension - Check if a post is saved */
+export interface IsPostSavedRequest {
+  type: 'IS_POST_SAVED';
+  requestId: string;
+  guid: string;
+}
+
+/** Message from extension to web app - Is post saved response */
+export interface IsPostSavedResponse {
+  type: 'IS_POST_SAVED_RESPONSE';
+  requestId: string;
+  success: boolean;
+  isSaved: boolean;
+  error?: string;
+}
+
+/** Message from web app to extension - Delete a saved post */
+export interface DeleteSavedPostRequest {
+  type: 'DELETE_SAVED_POST';
+  requestId: string;
+  guid: string;
+}
+
+/** Message from extension to web app - Delete saved post response */
+export interface DeleteSavedPostResponse {
+  type: 'DELETE_SAVED_POST_RESPONSE';
+  requestId: string;
+  success: boolean;
+  error?: string;
+}
+
+/** Message from web app to extension - Get saved posts count + size */
+export interface GetSavedPostsCountRequest {
+  type: 'GET_SAVED_POSTS_COUNT';
+  requestId: string;
+}
+
+/** Message from extension to web app - Saved posts count response */
+export interface SavedPostsCountResponse {
+  type: 'SAVED_POSTS_COUNT_RESPONSE';
+  requestId: string;
+  success: boolean;
+  count: number;
+  totalSizeBytes: number;
+  error?: string;
+}
+
+/** Message from web app to extension - Re-extract content via Readability */
+export interface ReextractSavedPostRequest {
+  type: 'REEXTRACT_SAVED_POST';
+  requestId: string;
+  guid: string;
+}
+
+/** Message from extension to web app - Re-extract response */
+export interface ReextractSavedPostResponse {
+  type: 'REEXTRACT_SAVED_POST_RESPONSE';
+  requestId: string;
+  success: boolean;
+  error?: string;
+}
+
+/** Message from popup/page to service worker - Get all saved posts */
+export interface GetAllSavedPostsRequest {
+  type: 'GET_ALL_SAVED_POSTS';
+}
+
+/** Message from service worker to popup/page - All saved posts response */
+export interface AllSavedPostsResponse {
+  type: 'ALL_SAVED_POSTS_RESPONSE';
+  success: boolean;
+  posts: import('../background/storage/saved-posts-db').SavedPost[];
+  error?: string;
+}
+
+/** Message from web app to extension - Get all saved post GUIDs (lightweight) */
+export interface GetAllSavedPostGuidsRequest {
+  type: 'GET_ALL_SAVED_POST_GUIDS';
+  requestId: string;
+}
+
+/** Message from extension to web app - All saved post GUIDs response */
+export interface AllSavedPostGuidsResponse {
+  type: 'ALL_SAVED_POST_GUIDS_RESPONSE';
+  requestId: string;
+  success: boolean;
+  guids: string[];
+  error?: string;
+}
+
+/** Message from page to service worker - Get single saved post */
+export interface GetSavedPostRequest {
+  type: 'GET_SAVED_POST';
+  postId: string;
+}
+
+/** Message from service worker to page - Single saved post response */
+export interface SavedPostResponse {
+  type: 'SAVED_POST_RESPONSE';
+  success: boolean;
+  post?: import('../background/storage/saved-posts-db').SavedPost;
+  error?: string;
+}
+
+// ============================================
+// Saved Posts Export/Import Messages
+// ============================================
+
+/** Message from page to service worker - Export all saved posts */
+export interface ExportSavedPostsRequest {
+  type: 'EXPORT_SAVED_POSTS';
+}
+
+/** Message from service worker to page - Export response */
+export interface ExportSavedPostsResponse {
+  type: 'EXPORT_SAVED_POSTS_RESPONSE';
+  success: boolean;
+  data?: {
+    version: 1;
+    exportedAt: number;
+    posts: import('../background/storage/saved-posts-db').SavedPost[];
+  };
+  error?: string;
+}
+
+/** Message from page to service worker - Import saved posts */
+export interface ImportSavedPostsRequest {
+  type: 'IMPORT_SAVED_POSTS';
+  posts: import('../background/storage/saved-posts-db').SavedPost[];
+}
+
+/** Message from service worker to page - Import response */
+export interface ImportSavedPostsResponse {
+  type: 'IMPORT_SAVED_POSTS_RESPONSE';
+  success: boolean;
+  imported?: number;
+  skipped?: number;
+  errors?: number;
+  error?: string;
 }
 
 // Window augmentation for extension flags

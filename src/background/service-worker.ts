@@ -35,6 +35,18 @@ import { discoverImagesBatch } from './handlers/discover-images-batch';
 import { fetchFeedsBatch } from './handlers/feed-fetch-batch';
 import { testBlogStatus } from './handlers/blog-status';
 import {
+  handleSavePostOffline,
+  handleIsPostSaved,
+  handleDeleteSavedPost,
+  handleGetSavedPostsCount,
+  handleReextractSavedPost,
+  handleGetAllSavedPosts,
+  handleGetAllSavedPostGuids,
+  handleGetSavedPost,
+  handleExportSavedPosts,
+  handleImportSavedPosts,
+} from './handlers/save-post';
+import {
   checkDirectoryUpdatesFromAPI,
   forceCheckDirectoryUpdates,
   handleSyncFollowedBlogs,
@@ -109,7 +121,27 @@ import type {
   FetchFeedsBatchResponse,
   DiscoverImagesBatchRequest,
   DiscoverImagesBatchResponse,
+  SavePostOfflineRequest,
+  SavePostOfflineResponse,
+  IsPostSavedRequest,
+  IsPostSavedResponse,
+  DeleteSavedPostRequest,
+  DeleteSavedPostResponse,
+  GetSavedPostsCountRequest,
+  SavedPostsCountResponse,
+  ReextractSavedPostRequest,
+  ReextractSavedPostResponse,
+  AllSavedPostsResponse,
+  AllSavedPostGuidsResponse,
+  GetAllSavedPostGuidsRequest,
+  GetSavedPostRequest,
+  SavedPostResponse,
+  ExportSavedPostsResponse,
+  ImportSavedPostsResponse,
+  ImportSavedPostsRequest,
 } from '../utils/types';
+
+import { DASHBOARD_BASE_URL } from './utils/constants';
 
 // ============================================
 // Context Menu Listener
@@ -200,6 +232,16 @@ type MessageResponse =
   | ClearDataResponse
   | DiscoverFeedsResponse
   | TestBlogStatusResponse
+  | SavePostOfflineResponse
+  | IsPostSavedResponse
+  | DeleteSavedPostResponse
+  | SavedPostsCountResponse
+  | ReextractSavedPostResponse
+  | AllSavedPostsResponse
+  | AllSavedPostGuidsResponse
+  | SavedPostResponse
+  | ExportSavedPostsResponse
+  | ImportSavedPostsResponse
   | { success: boolean };
 
 /**
@@ -919,6 +961,100 @@ browser.runtime.onMessage.addListener(
         return true;
       }
 
+      // Handle SAVE_POST_OFFLINE from web app (via content script)
+      if (message.type === 'SAVE_POST_OFFLINE') {
+        const request = message as SavePostOfflineRequest;
+        handleSavePostOffline(request.post, request.requestId).then(
+          (response) => {
+            sendResponse(response);
+          }
+        );
+        return true; // Async response
+      }
+
+      // Handle IS_POST_SAVED from web app (via content script)
+      if (message.type === 'IS_POST_SAVED') {
+        const request = message as IsPostSavedRequest;
+        handleIsPostSaved(request.guid, request.requestId).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle DELETE_SAVED_POST from web app (via content script)
+      if (message.type === 'DELETE_SAVED_POST') {
+        const request = message as DeleteSavedPostRequest;
+        handleDeleteSavedPost(request.guid, request.requestId).then(
+          (response) => {
+            sendResponse(response);
+          }
+        );
+        return true; // Async response
+      }
+
+      // Handle GET_SAVED_POSTS_COUNT from web app (via content script)
+      if (message.type === 'GET_SAVED_POSTS_COUNT') {
+        const request = message as GetSavedPostsCountRequest;
+        handleGetSavedPostsCount(request.requestId).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle REEXTRACT_SAVED_POST from web app (via content script)
+      if (message.type === 'REEXTRACT_SAVED_POST') {
+        const request = message as ReextractSavedPostRequest;
+        handleReextractSavedPost(request.guid, request.requestId).then(
+          (response) => {
+            sendResponse(response);
+          }
+        );
+        return true; // Async response
+      }
+
+      // Handle GET_ALL_SAVED_POST_GUIDS from web app (via content script)
+      if (message.type === 'GET_ALL_SAVED_POST_GUIDS') {
+        const request = message as GetAllSavedPostGuidsRequest;
+        handleGetAllSavedPostGuids(request.requestId).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle GET_ALL_SAVED_POSTS from popup/page (internal)
+      if (message.type === 'GET_ALL_SAVED_POSTS') {
+        handleGetAllSavedPosts().then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle GET_SAVED_POST from page (internal)
+      if (message.type === 'GET_SAVED_POST') {
+        const request = message as GetSavedPostRequest;
+        handleGetSavedPost(request.postId).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle EXPORT_SAVED_POSTS from page (internal)
+      if (message.type === 'EXPORT_SAVED_POSTS') {
+        handleExportSavedPosts().then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle IMPORT_SAVED_POSTS from page (internal)
+      if (message.type === 'IMPORT_SAVED_POSTS') {
+        const request = message as ImportSavedPostsRequest;
+        handleImportSavedPosts(request.posts).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
       // Handle analytics request from web app
       if (message.type === 'GET_ANALYTICS') {
         const request = message as GetAnalyticsRequest;
@@ -960,6 +1096,13 @@ browser.runtime.onMessage.addListener(
 );
 
 console.log('[Service Worker] Blogs Are Back extension loaded');
+
+// Request persistent storage to prevent browser eviction under storage pressure
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then((granted) => {
+    console.log(`[Service Worker] Persistent storage: ${granted ? 'granted' : 'denied'}`);
+  });
+}
 
 // Create the "Options" context menu for the extension icon
 createOptionsContextMenu();
@@ -1033,7 +1176,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 // Handle notification clicks - open Blogs Are Back
 browser.notifications.onClicked.addListener((notificationId) => {
   if (notificationId === 'blog-updates') {
-    browser.tabs.create({ url: 'https://www.blogsareback.com/dashboard' });
+    browser.tabs.create({ url: DASHBOARD_BASE_URL });
     browser.notifications.clear(notificationId);
   }
 });

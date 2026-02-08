@@ -4,7 +4,10 @@ import { Navigation } from './components/Navigation'
 import QueueRoute from './routes/queue'
 import SettingsRoute from './routes/settings'
 import HiddenSitesRoute from './routes/hidden-sites'
+import SavedPostsRoute from './routes/saved-posts'
+import SavedPostReaderRoute from './routes/saved-post-reader'
 import { EXTENSION_VERSION } from '@/utils/constants'
+import { DASHBOARD_BASE_URL } from '@/background/utils/constants'
 
 export default function App() {
   return (
@@ -18,13 +21,15 @@ export default function App() {
               <Route path="/" element={<Navigate to="/queue" replace />} />
               <Route path="/queue" element={<QueueRoute />} />
               <Route path="/hidden-sites" element={<HiddenSitesRoute />} />
+              <Route path="/saved" element={<SavedPostsRoute />} />
+              <Route path="/saved/:postId" element={<SavedPostReaderRoute />} />
               <Route path="/settings" element={<SettingsRoute />} />
             </Routes>
           </main>
 
           <footer className="mt-8 pt-6 border-t border-border flex items-center justify-between">
             <a
-              href="https://www.blogsareback.com/dashboard"
+              href={DASHBOARD_BASE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline"

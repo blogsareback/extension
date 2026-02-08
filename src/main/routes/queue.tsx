@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/item'
 import { Badge } from '@/components/ui/badge'
 import { useSubscriptionQueue } from '@/popup/hooks/useSubscriptionQueue'
+import { DASHBOARD_BASE_URL } from '@/background/utils/constants'
 
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp)
@@ -53,10 +54,9 @@ export default function QueueRoute() {
             </span>
           </div>
           <ItemGroup className="rounded-lg border border-border">
-            {queue.map((subscription, index) => (
+            {queue.map((subscription) => (
               <Item
                 key={`${subscription.feedUrl}-${subscription.queuedAt}`}
-                className={index > 0 ? 'border-t border-border' : ''}
               >
                 <ItemContent>
                   <ItemTitle>
@@ -82,7 +82,7 @@ export default function QueueRoute() {
           <p className="mt-6 text-sm text-muted-foreground text-center">
             These feeds will be automatically added when you visit{' '}
             <a
-              href="https://www.blogsareback.com"
+              href={DASHBOARD_BASE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
