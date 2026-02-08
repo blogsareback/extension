@@ -145,10 +145,31 @@
   }
 }
 
+/* Tab panel entrance animation */
+.tab-panel {
+  animation: tab-fade-in 150ms ease-out;
+}
+
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Item groups: remove individual item rounding, auto-add dividers */
 [data-slot='item-group'] > [data-slot='item'] {
   border-radius: 0;
 }
 [data-slot='item-group'] > [data-slot='item'] + [data-slot='item'] {
   border-top-color: var(--border);
+}
+
+button:not([disabled]),
+[role='button']:not([disabled]) {
+  cursor: pointer;
 }

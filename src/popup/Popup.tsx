@@ -5,7 +5,6 @@ import { STORAGE_KEY_STATS } from '../utils/constants';
 import { createEmptyStats } from '@/background/storage/stats';
 import { ThemeProvider } from '@/components/theme-provier';
 import ThemeToggle from '@/components/theme-toggle';
-import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -23,8 +22,20 @@ import { CatalogUpdatesSection } from './components/CatalogUpdatesSection';
 import { CustomBlogUpdatesSection } from './components/CustomBlogUpdatesSection';
 import { ModeSelector } from './components/ModeSelector';
 import { StatsSection } from './components/StatsSection';
+import { TabBar } from './components/TabBar';
 import { EXTENSION_VERSION } from '@/utils/constants';
 import { DASHBOARD_BASE_URL } from '@/background/utils/constants';
+
+type TabId = 'feeds' | 'updates' | 'stats';
+
+const TAB_STORAGE_KEY = 'popup_active_tab';
+const VALID_TABS: TabId[] = ['feeds', 'updates', 'stats'];
+
+function getSavedTab(): TabId {
+  const saved = localStorage.getItem(TAB_STORAGE_KEY);
+  if (saved && VALID_TABS.includes(saved as TabId)) return saved as TabId;
+  return 'feeds';
+}
 
 /** Check if stats object is legacy format */
 function isLegacyStats(stats: unknown): stats is LegacyFetchStats {
@@ -81,6 +92,12 @@ export default function Popup() {
   const { count: savedPostsCount, loading: savedPostsLoading } =
     useSavedPostsCount();
   const [stats, setStats] = React.useState<FetchStats>(createEmptyStats);
+  const [activeTab, setActiveTab] = React.useState<TabId>(getSavedTab);
+
+  const changeTab = (tab: TabId) => {
+    setActiveTab(tab);
+    localStorage.setItem(TAB_STORAGE_KEY, tab);
+  };
 
   const isFeaturedMode = settings.extensionMode === 'featured';
 
@@ -105,158 +122,39 @@ export default function Popup() {
     });
   }, []);
 
+  // If user switches to basic mode while on updates tab, go back to feeds
+  React.useEffect(() => {
+    if (!settingsLoading && !isFeaturedMode && activeTab === 'updates') {
+      changeTab('feeds');
+    }
+  }, [settingsLoading, isFeaturedMode, activeTab]);
+
+  // Determine notification dots
+  const feedsDot = feeds.length > 0;
+  const customBlogUpdatedCount = customBlogState?.updatedCount ?? 0;
+  const updatesDot = totalUpdatedCount > 0 || customBlogUpdatedCount > 0;
+
+  // Build tabs array
+  const tabs = [
+    { id: 'feeds', label: 'Feeds', dot: feedsDot },
+    ...(isFeaturedMode
+      ? [{ id: 'updates', label: 'Updates', dot: updatesDot }]
+      : []),
+    { id: 'stats', label: 'Stats' },
+  ];
+
   return (
     <ThemeProvider>
-      <div className="w-[360px] py-4 px-6 flex flex-col">
+      <div className="w-[360px] flex flex-col">
         {/* Header */}
-        <header className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-lg font-semibold">Blogs Are Back</h1>
-            <p className="text-sm text-muted-foreground">Feed Discovery</p>
-          </div>
-          <ThemeToggle />
-        </header>
-
-        {/* Mode Selector */}
-        <ModeSelector
-          mode={settings.extensionMode}
-          loading={settingsLoading}
-          onChange={(mode) => updateSettings({ extensionMode: mode })}
-        />
-
-        {/* Floating Button Toggle - only show in featured mode with feed discovery enabled */}
-        {isFeaturedMode && settings.feedDiscoveryEnabled && (
-          <div className="flex items-center justify-between py-2 mb-2">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Floating follow button</span>
-              <span className="text-xs text-muted-foreground">
-                Show on pages with feeds
-              </span>
-            </div>
-            <Switch
-              checked={settings.floatingButtonEnabled}
-              onCheckedChange={(checked) =>
-                updateSettings({ floatingButtonEnabled: checked })
-              }
-              disabled={settingsLoading}
-            />
-          </div>
-        )}
-
-        <Separator className="mb-4" />
-
-        {/* Detected Feeds Section - only show when feeds exist or loading */}
-        {(feedsLoading || feeds.length > 0) && (
-          <>
-            <section className="mb-4">
-              <h2 className="text-sm font-medium mb-2">Feeds on this page</h2>
-              {feedsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Spinner className="size-5" />
-                </div>
-              ) : (
-                <FeedList
-                  feeds={feeds}
-                  onSubscribe={subscribe}
-                  subscribingFeed={subscribingFeed}
-                />
-              )}
-            </section>
-
-            <Separator />
-          </>
-        )}
-
-        {/* Queue Summary */}
-        <section className="my-4">
-          {queueLoading ? (
-            <div className="flex items-center gap-2">
-              <Spinner className="size-4" />
-              <span className="text-sm text-muted-foreground">
-                Loading queue...
-              </span>
-            </div>
-          ) : (
-            <QueueSummary queueCount={queue.length} />
-          )}
-        </section>
-
-        <Separator />
-
-        {/* Saved Posts Summary */}
-        <section className="my-4">
-          {savedPostsLoading ? (
-            <div className="flex items-center gap-2">
-              <Spinner className="size-4" />
-              <span className="text-sm text-muted-foreground">
-                Loading saved posts...
-              </span>
-            </div>
-          ) : (
-            <SavedPostsSummary count={savedPostsCount} />
-          )}
-        </section>
-
-        <Separator />
-
-        {/* Blog Updates Sections (Featured Mode Only) */}
-        {isFeaturedMode && (
-          <>
-            {/* Catalog Updates Section (Directory + Community) */}
-            <section className="my-4">
-              <CatalogUpdatesSection
-                directoryState={directoryState}
-                communityState={communityState}
-                totalUpdatedCount={totalUpdatedCount}
-                totalFollowedCount={totalFollowedCount}
-                loading={catalogLoading}
-                onRefresh={refreshCatalogUpdates}
-                isRefreshing={isCatalogRefreshing}
-              />
-            </section>
-
-            <Separator />
-
-            {/* Custom Blog Updates Section */}
-            <section className="my-4">
-              <CustomBlogUpdatesSection
-                state={customBlogState}
-                loading={customBlogLoading}
-                onRefresh={refreshCustomBlogUpdates}
-                isRefreshing={isCustomBlogRefreshing}
-              />
-            </section>
-
-            <Separator />
-          </>
-        )}
-
-        {/* Stats Section (Collapsible) */}
-        <details className="mt-4 overflow-hidden">
-          <summary className="text-sm font-medium cursor-pointer select-none hover:text-muted-foreground transition-colors">
-            Statistics
-          </summary>
-          <StatsSection stats={stats} />
-        </details>
-
-        <Separator className="mt-4" />
-
-        {/* Footer */}
-        <footer className="mt-4 flex items-center justify-between">
-          <a
-            href={DASHBOARD_BASE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline"
-          >
-            Open Blogs Are Back
-          </a>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">v{EXTENSION_VERSION}</span>
+        <header className="flex items-center justify-between px-6 pt-4 pb-2">
+          <h1 className="text-lg font-semibold">Blogs Are Back</h1>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="icon"
-              className="size-7"
+              className="size-8"
               onClick={() => {
                 browser.tabs.create({
                   url: browser.runtime.getURL('src/main/main.html#/settings'),
@@ -267,6 +165,148 @@ export default function Popup() {
               <span className="sr-only">Settings</span>
             </Button>
           </div>
+        </header>
+
+        {/* Mode Selector + Floating Button */}
+        <div className="px-6">
+          <ModeSelector
+            mode={settings.extensionMode}
+            loading={settingsLoading}
+            onChange={(mode) => updateSettings({ extensionMode: mode })}
+          />
+
+          {isFeaturedMode && settings.feedDiscoveryEnabled && (
+            <div className="flex items-center justify-between py-2">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Floating follow button</span>
+                <span className="text-xs text-muted-foreground">
+                  Show on pages with feeds
+                </span>
+              </div>
+              <Switch
+                checked={settings.floatingButtonEnabled}
+                onCheckedChange={(checked) =>
+                  updateSettings({ floatingButtonEnabled: checked })
+                }
+                disabled={settingsLoading}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Tab Bar */}
+        <div className="px-6 py-2">
+          <TabBar
+            tabs={tabs}
+            activeTab={activeTab}
+            onTabChange={(id) => changeTab(id as TabId)}
+          />
+        </div>
+
+        {/* Tab Content */}
+        <div className="px-6 pb-2 min-h-[120px]">
+          {/* Feeds Tab */}
+          {activeTab === 'feeds' && (
+            <div className="tab-panel space-y-4 py-2">
+              {/* Detected Feeds */}
+              {(feedsLoading || feeds.length > 0) && (
+                <section>
+                  <h2 className="text-sm font-medium mb-2">Feeds on this page</h2>
+                  {feedsLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Spinner className="size-5" />
+                    </div>
+                  ) : (
+                    <FeedList
+                      feeds={feeds}
+                      onSubscribe={subscribe}
+                      subscribingFeed={subscribingFeed}
+                    />
+                  )}
+                </section>
+              )}
+
+              {!feedsLoading && feeds.length === 0 && (
+                <p className="text-sm text-muted-foreground py-2">
+                  No feeds detected on this page.
+                </p>
+              )}
+
+              {/* Queue Summary */}
+              <section>
+                {queueLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Spinner className="size-4" />
+                    <span className="text-sm text-muted-foreground">
+                      Loading queue...
+                    </span>
+                  </div>
+                ) : (
+                  <QueueSummary queueCount={queue.length} />
+                )}
+              </section>
+
+              {/* Saved Posts Summary */}
+              <section>
+                {savedPostsLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Spinner className="size-4" />
+                    <span className="text-sm text-muted-foreground">
+                      Loading saved posts...
+                    </span>
+                  </div>
+                ) : (
+                  <SavedPostsSummary count={savedPostsCount} />
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* Updates Tab (Featured Mode Only) */}
+          {activeTab === 'updates' && isFeaturedMode && (
+            <div className="tab-panel space-y-4 py-2">
+              <section>
+                <CatalogUpdatesSection
+                  directoryState={directoryState}
+                  communityState={communityState}
+                  totalUpdatedCount={totalUpdatedCount}
+                  totalFollowedCount={totalFollowedCount}
+                  loading={catalogLoading}
+                  onRefresh={refreshCatalogUpdates}
+                  isRefreshing={isCatalogRefreshing}
+                />
+              </section>
+
+              <section>
+                <CustomBlogUpdatesSection
+                  state={customBlogState}
+                  loading={customBlogLoading}
+                  onRefresh={refreshCustomBlogUpdates}
+                  isRefreshing={isCustomBlogRefreshing}
+                />
+              </section>
+            </div>
+          )}
+
+          {/* Stats Tab */}
+          {activeTab === 'stats' && (
+            <div className="tab-panel py-2">
+              <StatsSection stats={stats} />
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <footer className="px-6 py-3 border-t border-border flex items-center justify-between">
+          <a
+            href={DASHBOARD_BASE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary hover:underline"
+          >
+            Open Blogs Are Back
+          </a>
+          <span className="text-xs text-muted-foreground">v{EXTENSION_VERSION}</span>
         </footer>
       </div>
     </ThemeProvider>
