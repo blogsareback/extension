@@ -23,6 +23,7 @@ import {
   getCatalogUpdatesState,
   getCustomBlogUpdatesState,
   acknowledgeUpdates,
+  updateCatalogBadge,
 } from './storage/state';
 
 // Handlers
@@ -67,7 +68,6 @@ import {
   handleContextMenuClick,
   handleTabRemoved,
   handleTabUpdated,
-  updateBadge,
   markShownForSession,
   hasShownThisSession,
   createOptionsContextMenu,
@@ -159,8 +159,8 @@ browser.tabs.onRemoved.addListener((tabId) => {
   handleTabRemoved(tabId);
 });
 
-browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
-  await handleTabUpdated(tabId, changeInfo);
+browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  handleTabUpdated(tabId, changeInfo);
 });
 
 // ============================================
@@ -673,6 +673,10 @@ browser.runtime.onMessage.addListener(
         const request = message as UpdateSettingsRequest;
         updateSettings(request.settings)
           .then((settings) => {
+            // Clear badge immediately when new post badge is disabled
+            if (request.settings.newPostBadgeEnabled === false) {
+              updateCatalogBadge(0);
+            }
             sendResponse({
               type: 'UPDATE_SETTINGS_RESPONSE',
               success: true,

@@ -51,7 +51,6 @@ export const DIRECTORY_CACHE_TTL_MS = CATALOG_CACHE_TTL_MS;
 // Badge colors
 export const CATALOG_BADGE_COLOR = '#ef4444'; // Red for catalog updates
 export const DIRECTORY_BADGE_COLOR = CATALOG_BADGE_COLOR; // Backwards compatibility
-export const FEED_DISCOVERY_BADGE_COLOR = '#3b82f6'; // Blue for feed discovery
 
 // Alarm names
 export const CATALOG_CHECK_ALARM = 'catalog-updates-check';

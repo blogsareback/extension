@@ -14,6 +14,7 @@ import type {
   CatalogUpdatesState,
   CustomBlogUpdatesState,
 } from '../../utils/types';
+import { getSettings } from './settings';
 
 /**
  * Generic getter for catalog source state
@@ -86,7 +87,8 @@ export async function getCustomBlogUpdatesState(): Promise<CustomBlogUpdatesStat
  */
 export async function updateCatalogBadge(updatedCount: number): Promise<void> {
   try {
-    if (updatedCount > 0) {
+    const settings = await getSettings();
+    if (updatedCount > 0 && settings.newPostBadgeEnabled) {
       await browser.action.setBadgeText({ text: updatedCount.toString() });
       await browser.action.setBadgeBackgroundColor({ color: CATALOG_BADGE_COLOR });
       console.log(`[Service Worker] Set catalog badge: ${updatedCount}`);

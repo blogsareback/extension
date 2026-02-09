@@ -10,7 +10,6 @@ import type { ExtensionSettings } from '../../utils/types';
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   extensionMode: 'basic', // Default to basic mode (conservative)
   feedDiscoveryEnabled: true,
-  showBadgeCount: true,
   floatingButtonEnabled: false, // Disabled by default - users can enable in popup or settings
   stricterFeedRecognition: false, // Off by default for broader feed detection
   // Floating button customization defaults
@@ -23,6 +22,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,
   customBlogNotificationsEnabled: true,
+  // Badge
+  newPostBadgeEnabled: true,
   // Performance
   prefetchOnUpdate: false, // Disabled by default to save bandwidth
   // Advanced defaults

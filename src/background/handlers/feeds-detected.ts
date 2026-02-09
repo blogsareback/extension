@@ -8,7 +8,6 @@ import {
   STORAGE_KEY_SUBSCRIPTION_QUEUE,
   STORAGE_KEY_FOLLOWED_FEED_URLS,
   STORAGE_KEY_PROBE_CACHE,
-  FEED_DISCOVERY_BADGE_COLOR,
   PROBE_CACHE_TTL_MS,
 } from '../utils/constants';
 
@@ -79,8 +78,15 @@ function getDomainFromUrl(url: string): string {
  * Create the "Settings" context menu item that appears when right-clicking the extension icon.
  * This should be called once at service worker startup.
  */
-export function createOptionsContextMenu(): void {
+export async function createOptionsContextMenu(): Promise<void> {
   try {
+    // Remove first to avoid duplicate ID error on service worker restart
+    try {
+      await browser.contextMenus.remove(SETTINGS_MENU_ID);
+    } catch {
+      // Menu doesn't exist yet, that's fine
+    }
+
     browser.contextMenus.create({
       id: SETTINGS_MENU_ID,
       title: 'Settings',
@@ -88,35 +94,7 @@ export function createOptionsContextMenu(): void {
     });
     console.log('[Service Worker] Created Settings context menu');
   } catch (error) {
-    // Menu might already exist if service worker was restarted
-    console.log('[Service Worker] Settings context menu already exists or failed:', error);
-  }
-}
-
-/**
- * Update browser action badge with feed count
- */
-export async function updateBadge(tabId: number, feedCount: number): Promise<void> {
-  try {
-    if (feedCount > 0) {
-      await browser.action.setBadgeText({
-        text: feedCount.toString(),
-        tabId,
-      });
-      await browser.action.setBadgeBackgroundColor({
-        color: FEED_DISCOVERY_BADGE_COLOR,
-        tabId,
-      });
-      await browser.action.setTitle({
-        title: `${feedCount} feed${feedCount > 1 ? 's' : ''} available`,
-        tabId,
-      });
-    } else {
-      await browser.action.setBadgeText({ text: '', tabId });
-      await browser.action.setTitle({ title: 'Blogs Are Back', tabId });
-    }
-  } catch (error) {
-    console.error('[Service Worker] Failed to update badge:', error);
+    console.log('[Service Worker] Settings context menu failed:', error);
   }
 }
 
@@ -213,13 +191,6 @@ export async function handleFeedsDetected(
   const unfollowedFeedCount = feeds.filter(
     (feed) => !normalizedFollowedUrls.has(normalizeUrl(feed.href))
   ).length;
-
-  // Update badge (only if setting enabled)
-  if (settings.showBadgeCount) {
-    await updateBadge(tabId, unfollowedFeedCount);
-  } else {
-    await updateBadge(tabId, 0); // Clear badge
-  }
 
   // Update context menus with discovered feeds (still show all for now)
   await updateContextMenus(tabId, feeds);
@@ -409,14 +380,13 @@ export function handleTabRemoved(tabId: number): void {
 }
 
 /**
- * Clear feed data and badge when navigating away
+ * Clear feed data when navigating away
  */
-export async function handleTabUpdated(
+export function handleTabUpdated(
   tabId: number,
   changeInfo: Tabs.OnUpdatedChangeInfoType
-): Promise<void> {
+): void {
   if (changeInfo.url) {
     discoveredFeeds.delete(tabId);
-    await updateBadge(tabId, 0);
   }
 }

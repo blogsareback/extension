@@ -142,24 +142,6 @@ export default function SettingsRoute() {
           <ItemSeparator />
           <Item>
             <ItemContent>
-              <ItemTitle>Show badge count</ItemTitle>
-              <ItemDescription>
-                Display number of feeds found on the extension icon
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Switch
-                checked={settings.showBadgeCount}
-                onCheckedChange={(checked) =>
-                  updateSettings({ showBadgeCount: checked })
-                }
-                disabled={!settings.feedDiscoveryEnabled}
-              />
-            </ItemActions>
-          </Item>
-          <ItemSeparator />
-          <Item>
-            <ItemContent>
               <ItemTitle>Floating subscribe button</ItemTitle>
               <ItemDescription>
                 {!isFeaturedMode
@@ -372,6 +354,23 @@ export default function SettingsRoute() {
                 checked={settings.blogUpdateNotificationsEnabled}
                 onCheckedChange={(checked) =>
                   updateSettings({ blogUpdateNotificationsEnabled: checked })
+                }
+              />
+            </ItemActions>
+          </Item>
+          <ItemSeparator />
+          <Item>
+            <ItemContent>
+              <ItemTitle>New post badge</ItemTitle>
+              <ItemDescription>
+                Show a count on the extension icon when blogs have new posts
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                checked={settings.newPostBadgeEnabled}
+                onCheckedChange={(checked) =>
+                  updateSettings({ newPostBadgeEnabled: checked })
                 }
               />
             </ItemActions>

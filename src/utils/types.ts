@@ -589,7 +589,6 @@ export interface ExtensionSettings {
 
   // Feed Discovery
   feedDiscoveryEnabled: boolean;
-  showBadgeCount: boolean;
   floatingButtonEnabled: boolean;
   /** Only show floating button for feeds with "feed", "atom", or "rss" in the URL */
   stricterFeedRecognition: boolean;
@@ -610,6 +609,9 @@ export interface ExtensionSettings {
   notificationsEnabled: boolean;
   blogUpdateNotificationsEnabled: boolean; // Notify when directory blogs have new posts
   customBlogNotificationsEnabled: boolean; // Notify when custom blogs have new posts
+
+  // Badge
+  newPostBadgeEnabled: boolean; // Show badge count on extension icon for new posts
 
   // Performance
   /** Pre-fetch feed content when updates are detected (uses more bandwidth) */
@@ -633,7 +635,6 @@ export interface ExtensionSettings {
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   extensionMode: 'basic', // Default to basic mode (conservative)
   feedDiscoveryEnabled: true,
-  showBadgeCount: true,
   floatingButtonEnabled: false, // Disabled by default - users can enable in popup or settings
   stricterFeedRecognition: true, // On by default for stricter feed detection
 
@@ -648,6 +649,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   notificationsEnabled: true,
   blogUpdateNotificationsEnabled: true,
   customBlogNotificationsEnabled: true,
+
+  // Badge
+  newPostBadgeEnabled: true,
 
   // Performance
   prefetchOnUpdate: false, // Disabled by default to save bandwidth
