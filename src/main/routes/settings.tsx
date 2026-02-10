@@ -400,6 +400,23 @@ export default function SettingsRoute() {
               />
             </ItemActions>
           </Item>
+          <ItemSeparator />
+          <Item>
+            <ItemContent>
+              <ItemTitle>Background custom blog checks</ItemTitle>
+              <ItemDescription>
+                Periodically check your custom blog feeds for new posts in the background (uses more bandwidth)
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                checked={settings.backgroundCustomBlogChecks}
+                onCheckedChange={(checked) =>
+                  updateSettings({ backgroundCustomBlogChecks: checked })
+                }
+              />
+            </ItemActions>
+          </Item>
         </ItemGroup>
       </section>
 

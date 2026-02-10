@@ -616,6 +616,8 @@ export interface ExtensionSettings {
   // Performance
   /** Pre-fetch feed content when updates are detected (uses more bandwidth) */
   prefetchOnUpdate: boolean;
+  /** Periodically check custom blog feeds for new posts in the background */
+  backgroundCustomBlogChecks: boolean;
 
   // Advanced Settings
   /** Interval for automatic feed checks in minutes (0 = disabled) */
@@ -655,6 +657,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 
   // Performance
   prefetchOnUpdate: false, // Disabled by default to save bandwidth
+  backgroundCustomBlogChecks: true, // Enabled by default
 
   // Advanced defaults
   feedCheckIntervalMinutes: 10, // Check every 10 minutes

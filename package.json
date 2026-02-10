@@ -1,6 +1,6 @@
 {
   "name": "blogs-are-back-extension",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "Browser extension for fetching RSS/Atom feeds for Blogs Are Back",
   "type": "module",
   "scripts": {

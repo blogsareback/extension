@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   newPostBadgeEnabled: true,
   // Performance
   prefetchOnUpdate: false, // Disabled by default to save bandwidth
+  backgroundCustomBlogChecks: true, // Enabled by default
   // Advanced defaults
   feedCheckIntervalMinutes: 10, // Check every 10 minutes
   requestTimeoutSeconds: 30, // 30 second timeout

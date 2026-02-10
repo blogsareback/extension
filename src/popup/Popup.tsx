@@ -8,7 +8,7 @@ import ThemeToggle from '@/components/theme-toggle';
 import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Settings } from 'lucide-react';
+import { Settings, BookOpen, ArrowUpRight } from 'lucide-react';
 import { useDiscoveredFeeds } from './hooks/useDiscoveredFeeds';
 import { useSubscriptionQueue } from './hooks/useSubscriptionQueue';
 import { useCatalogUpdates } from './hooks/useCatalogUpdates';
@@ -297,16 +297,18 @@ export default function Popup() {
         </div>
 
         {/* Footer */}
-        <footer className="px-6 py-3 border-t border-border flex items-center justify-between">
+        <footer className="px-6 pt-3 pb-4 border-t border-border">
           <a
             href={DASHBOARD_BASE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline"
+            className="open-reader-btn group flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            Open Blogs Are Back
+            <BookOpen className="size-4" />
+            <span>Open Reader</span>
+            <ArrowUpRight className="size-3.5 opacity-50" />
           </a>
-          <span className="text-xs text-muted-foreground">v{EXTENSION_VERSION}</span>
+          <p className="text-center text-[10px] text-muted-foreground/50 mt-2">v{EXTENSION_VERSION}</p>
         </footer>
       </div>
     </ThemeProvider>

@@ -1132,9 +1132,16 @@ async function setupPeriodicCheckAlarm(): Promise<void> {
   }
 }
 
-// Check for catalog updates on startup (if we have stored followed blogs)
+// Check for catalog and custom blog updates on startup (if we have stored followed blogs)
 checkCatalogSnapshotFromAPI().catch((error) => {
   console.log('[Service Worker] Startup catalog check failed:', error);
+});
+getSettings().then((settings) => {
+  if (settings.backgroundCustomBlogChecks) {
+    checkCustomBlogUpdates({ silent: true }).catch((error) => {
+      console.log('[Service Worker] Startup custom blog check failed:', error);
+    });
+  }
 });
 
 // Set up periodic check alarm based on settings
@@ -1147,6 +1154,13 @@ browser.alarms.onAlarm.addListener((alarm) => {
     console.log('[Service Worker] Periodic catalog updates check triggered');
     checkCatalogSnapshotFromAPI().catch((error) => {
       console.log('[Service Worker] Periodic catalog check failed:', error);
+    });
+    getSettings().then((settings) => {
+      if (settings.backgroundCustomBlogChecks) {
+        checkCustomBlogUpdates({ silent: true }).catch((error) => {
+          console.log('[Service Worker] Periodic custom blog check failed:', error);
+        });
+      }
     });
   }
 });
