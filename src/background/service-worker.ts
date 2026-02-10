@@ -48,14 +48,13 @@ import {
   handleImportSavedPosts,
 } from './handlers/save-post';
 import {
-  checkDirectoryUpdatesFromAPI,
   forceCheckDirectoryUpdates,
   handleSyncFollowedBlogs,
 } from './handlers/directory-updates';
 import {
-  checkCommunityUpdatesFromAPI,
   forceCheckCommunityUpdates,
 } from './handlers/community-updates';
+import { checkCatalogSnapshotFromAPI } from './handlers/catalog-updates';
 import {
   checkCustomBlogUpdates,
   forceCheckCustomBlogUpdates,
@@ -502,12 +501,9 @@ browser.runtime.onMessage.addListener(
         return true; // Async response
       }
 
-      // Handle FORCE_CHECK_CATALOG_UPDATES from popup (checks both directory + community)
+      // Handle FORCE_CHECK_CATALOG_UPDATES from popup (checks both directory + community via snapshot)
       if (message.type === 'FORCE_CHECK_CATALOG_UPDATES') {
-        Promise.all([
-          forceCheckDirectoryUpdates(),
-          forceCheckCommunityUpdates(),
-        ])
+        checkCatalogSnapshotFromAPI({ skipCache: true, silent: true })
           .then(() => {
             sendResponse({
               type: 'FORCE_CHECK_CATALOG_UPDATES_RESPONSE',
@@ -1137,10 +1133,7 @@ async function setupPeriodicCheckAlarm(): Promise<void> {
 }
 
 // Check for catalog updates on startup (if we have stored followed blogs)
-Promise.all([
-  checkDirectoryUpdatesFromAPI(),
-  checkCommunityUpdatesFromAPI(),
-]).catch((error) => {
+checkCatalogSnapshotFromAPI().catch((error) => {
   console.log('[Service Worker] Startup catalog check failed:', error);
 });
 
@@ -1152,10 +1145,7 @@ setupPeriodicCheckAlarm().catch((error) => {
 browser.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === DIRECTORY_CHECK_ALARM) {
     console.log('[Service Worker] Periodic catalog updates check triggered');
-    Promise.all([
-      checkDirectoryUpdatesFromAPI(),
-      checkCommunityUpdatesFromAPI(),
-    ]).catch((error) => {
+    checkCatalogSnapshotFromAPI().catch((error) => {
       console.log('[Service Worker] Periodic catalog check failed:', error);
     });
   }

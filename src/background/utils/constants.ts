@@ -40,13 +40,10 @@ export const BASE_URL = 'https://www.blogsareback.com';
 export const DASHBOARD_BASE_URL = `${BASE_URL}/dashboard`;
 
 // API endpoints
-export const DIRECTORY_UPDATES_API = `${BASE_URL}/api/directory/updates`;
-export const COMMUNITY_UPDATES_API = `${BASE_URL}/api/community/updates`;
+export const CATALOG_SNAPSHOT_API = `${BASE_URL}/api/catalog/snapshot`;
 
-// Cache TTL for catalog updates (5 minutes, matches server CDN cache)
-export const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
-// Backwards compatibility
-export const DIRECTORY_CACHE_TTL_MS = CATALOG_CACHE_TTL_MS;
+// Cache TTL for catalog updates (15 minutes, aligns with CDN s-maxage)
+export const CATALOG_CACHE_TTL_MS = 15 * 60 * 1000;
 
 // Badge colors
 export const CATALOG_BADGE_COLOR = '#ef4444'; // Red for catalog updates

@@ -25,8 +25,7 @@ import { sendCustomBlogNotification } from '../utils/notifications';
 import { getSettings, isFeatureMode, DEFAULT_SETTINGS } from '../storage/settings';
 import { getDirectoryUpdatesState, getCommunityUpdatesState, getCustomBlogUpdatesState, updateCatalogBadge } from '../storage/state';
 import { setFeedCache } from '../storage/feed-cache';
-import { checkDirectoryUpdatesFromAPI } from './directory-updates';
-import { checkCommunityUpdatesFromAPI } from './community-updates';
+import { checkCatalogSnapshotFromAPI } from './catalog-updates';
 import type {
   CustomBlogUpdatesState,
   CustomBlogState,
@@ -556,7 +555,7 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
 
     // Featured mode: proceed with update checking
 
-    // Handle directory blogs
+    // Handle empty catalog states
     if (directoryBlogIds.length === 0) {
       const emptyDirState: CatalogSourceUpdatesState = {
         status: 'success',
@@ -573,32 +572,8 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
       await browser.storage.local.set({
         [STORAGE_KEY_DIRECTORY_UPDATES]: emptyDirState,
       });
-    } else {
-      // Check directory updates
-      const currentDirState = await getDirectoryUpdatesState();
-      const checkingDirState: CatalogSourceUpdatesState = {
-        status: 'checking',
-        isEnabled: true,
-        updatedCount: currentDirState?.updatedCount ?? 0,
-        followedCount: directoryBlogIds.length,
-        totalBlogs: currentDirState?.totalBlogs ?? null,
-        lastCheckedAt: currentDirState?.lastCheckedAt ?? null,
-        nextCheckAt: currentDirState?.nextCheckAt ?? null,
-        sinceTimestamp: lastVisit,
-        syncStatus: 'synced',
-        lastSyncAt: now,
-      };
-      await browser.storage.local.set({
-        [STORAGE_KEY_DIRECTORY_UPDATES]: checkingDirState,
-      });
-
-      // Check directory updates (don't await - let it run in background)
-      checkDirectoryUpdatesFromAPI({ skipCache: true, silent: true }).catch((error) => {
-        console.error('[Service Worker] Directory updates check failed:', error);
-      });
     }
 
-    // Handle community blogs
     if (communityBlogIds.length === 0) {
       const emptyCommState: CatalogSourceUpdatesState = {
         status: 'success',
@@ -615,28 +590,12 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
       await browser.storage.local.set({
         [STORAGE_KEY_COMMUNITY_UPDATES]: emptyCommState,
       });
-    } else {
-      // Check community updates
-      const currentCommState = await getCommunityUpdatesState();
-      const checkingCommState: CatalogSourceUpdatesState = {
-        status: 'checking',
-        isEnabled: true,
-        updatedCount: currentCommState?.updatedCount ?? 0,
-        followedCount: communityBlogIds.length,
-        totalBlogs: currentCommState?.totalBlogs ?? null,
-        lastCheckedAt: currentCommState?.lastCheckedAt ?? null,
-        nextCheckAt: currentCommState?.nextCheckAt ?? null,
-        sinceTimestamp: lastVisit,
-        syncStatus: 'synced',
-        lastSyncAt: now,
-      };
-      await browser.storage.local.set({
-        [STORAGE_KEY_COMMUNITY_UPDATES]: checkingCommState,
-      });
+    }
 
-      // Check community updates (don't await - let it run in background)
-      checkCommunityUpdatesFromAPI({ skipCache: true, silent: true }).catch((error) => {
-        console.error('[Service Worker] Community updates check failed:', error);
+    // Check both catalogs via snapshot (single request, don't await)
+    if (directoryBlogIds.length > 0 || communityBlogIds.length > 0) {
+      checkCatalogSnapshotFromAPI({ skipCache: true, silent: true }).catch((error) => {
+        console.error('[Service Worker] Catalog snapshot check failed:', error);
       });
     }
 

@@ -1,6 +1,6 @@
 /**
- * Directory updates handler - checks for updates to followed blogs from the directory
- * Uses the unified catalog-updates module for the core check logic.
+ * Directory updates handler - checks for updates to followed blogs from the directory.
+ * Delegates to the unified catalog snapshot API.
  */
 
 import browser from '../../utils/browser';
@@ -8,49 +8,21 @@ import {
   STORAGE_KEY_FOLLOWED_BLOGS,
   STORAGE_KEY_LAST_DIRECTORY_VISIT,
   STORAGE_KEY_DIRECTORY_UPDATES,
-  STORAGE_KEY_DIRECTORY_BLOG_TITLES,
-  DIRECTORY_UPDATES_API,
 } from '../utils/constants';
 import { isFeatureMode } from '../storage/settings';
 import { getDirectoryUpdatesState, updateCatalogBadge } from '../storage/state';
-import { checkCatalogSourceUpdates, forceCheckCatalogSource, type CatalogSourceConfig } from './catalog-updates';
+import { checkCatalogSnapshotFromAPI } from './catalog-updates';
 import type {
   CatalogSourceUpdatesState,
   SyncFollowedBlogsRequest,
 } from '../../utils/types';
 
 /**
- * Configuration for directory updates
- */
-const DIRECTORY_CONFIG: CatalogSourceConfig = {
-  name: 'directory',
-  followedBlogsKey: STORAGE_KEY_FOLLOWED_BLOGS,
-  updatesStateKey: STORAGE_KEY_DIRECTORY_UPDATES,
-  blogTitlesKey: STORAGE_KEY_DIRECTORY_BLOG_TITLES,
-  apiUrl: DIRECTORY_UPDATES_API,
-  totalBlogsField: 'total_directory_blogs',
-};
-
-/**
- * Check directory updates by calling the API directly
- * @param options.skipCache - If true, bypass the cache TTL check
- * @param options.silent - If true, don't send push notifications
- *
- * NOTE: This function respects the extension mode setting.
- * In basic mode, it will skip the API check entirely.
- */
-export async function checkDirectoryUpdatesFromAPI(options?: {
-  skipCache?: boolean;
-  silent?: boolean;
-}): Promise<void> {
-  await checkCatalogSourceUpdates(DIRECTORY_CONFIG, options);
-}
-
-/**
- * Force check for directory updates (bypasses cache, used by popup refresh button)
+ * Force check for directory updates (bypasses cache, used by popup refresh button).
+ * Uses the unified snapshot endpoint which checks both catalogs in one request.
  */
 export async function forceCheckDirectoryUpdates(): Promise<void> {
-  await forceCheckCatalogSource(DIRECTORY_CONFIG);
+  await checkCatalogSnapshotFromAPI({ skipCache: true, silent: true });
 }
 
 /**
@@ -159,8 +131,8 @@ export async function handleSyncFollowedBlogs(
       [STORAGE_KEY_DIRECTORY_UPDATES]: checkingState,
     });
 
-    // Immediately check for updates after syncing (skip cache since we just synced)
-    await checkDirectoryUpdatesFromAPI({ skipCache: true, silent: true });
+    // Immediately check for updates after syncing via snapshot (gets both catalogs)
+    await checkCatalogSnapshotFromAPI({ skipCache: true, silent: true });
 
   } catch (error) {
     console.error('[Service Worker] Failed to sync followed blogs:', error);

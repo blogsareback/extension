@@ -1,210 +1,225 @@
 /**
- * Unified catalog updates handler - checks for updates to followed blogs
- * Works for both directory and community blog sources.
+ * Catalog updates handler - checks for updates to followed blogs
+ * via /api/catalog/snapshot (single CDN-cacheable request for both catalogs).
  */
 
 import browser from '../../utils/browser';
 import {
   STORAGE_KEY_LAST_DIRECTORY_VISIT,
   STORAGE_KEY_SETTINGS,
+  STORAGE_KEY_FOLLOWED_BLOGS,
+  STORAGE_KEY_FOLLOWED_COMMUNITY_BLOGS,
+  STORAGE_KEY_DIRECTORY_UPDATES,
+  STORAGE_KEY_COMMUNITY_UPDATES,
+  STORAGE_KEY_DIRECTORY_BLOG_TITLES,
+  STORAGE_KEY_COMMUNITY_BLOG_TITLES,
   CATALOG_CACHE_TTL_MS,
+  CATALOG_SNAPSHOT_API,
   USER_AGENT,
 } from '../utils/constants';
 import { sendBlogUpdatesNotification } from '../utils/notifications';
 import { DEFAULT_SETTINGS } from '../storage/settings';
-import { getDirectoryUpdatesState, getCommunityUpdatesState, getCustomBlogUpdatesState, updateCatalogBadge } from '../storage/state';
+import { getCustomBlogUpdatesState, updateCatalogBadge } from '../storage/state';
 import type {
   CatalogSourceUpdatesState,
   ExtensionSettings,
 } from '../../utils/types';
 
-/**
- * Configuration for a catalog source (directory or community)
- */
-export interface CatalogSourceConfig {
-  /** Source name for logging */
-  name: 'directory' | 'community';
-  /** Storage key for followed blog IDs */
-  followedBlogsKey: string;
-  /** Storage key for update state */
-  updatesStateKey: string;
-  /** Storage key for blog titles mapping */
-  blogTitlesKey: string;
-  /** API endpoint URL */
-  apiUrl: string;
-  /** Field name for total blogs in API response */
-  totalBlogsField: 'total_directory_blogs' | 'total_community_blogs';
+interface SnapshotSection {
+  blog_last_post_dates: Record<string, string>;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+  total_blogs: number;
+}
+
+interface SnapshotResponse {
+  directory: SnapshotSection;
+  community: SnapshotSection;
 }
 
 /**
- * Get the other sources' update count for badge calculation
+ * Check both catalogs in a single request via /api/catalog/snapshot.
+ * One URL, no query params, fully CDN-cacheable.
+ * Filters locally by lastVisit, updates both states and badge.
  */
-async function getOtherSourcesUpdateCount(currentSource: 'directory' | 'community'): Promise<number> {
-  const customState = await getCustomBlogUpdatesState();
-  const customCount = customState?.updatedCount ?? 0;
-
-  if (currentSource === 'directory') {
-    const commState = await getCommunityUpdatesState();
-    return (commState?.updatedCount ?? 0) + customCount;
-  } else {
-    const dirState = await getDirectoryUpdatesState();
-    return (dirState?.updatedCount ?? 0) + customCount;
-  }
-}
-
-/**
- * Check catalog source updates by calling the API directly
- */
-export async function checkCatalogSourceUpdates(
-  config: CatalogSourceConfig,
-  options?: { skipCache?: boolean; silent?: boolean }
-): Promise<void> {
+export async function checkCatalogSnapshotFromAPI(options?: {
+  skipCache?: boolean;
+  silent?: boolean;
+}): Promise<void> {
   const { skipCache = false, silent = false } = options ?? {};
-  const { name, followedBlogsKey, updatesStateKey, blogTitlesKey, apiUrl, totalBlogsField } = config;
 
   try {
     const result = await browser.storage.local.get([
-      followedBlogsKey,
+      STORAGE_KEY_FOLLOWED_BLOGS,
+      STORAGE_KEY_FOLLOWED_COMMUNITY_BLOGS,
       STORAGE_KEY_LAST_DIRECTORY_VISIT,
-      updatesStateKey,
+      STORAGE_KEY_DIRECTORY_UPDATES,
+      STORAGE_KEY_COMMUNITY_UPDATES,
       STORAGE_KEY_SETTINGS,
-      blogTitlesKey,
+      STORAGE_KEY_DIRECTORY_BLOG_TITLES,
+      STORAGE_KEY_COMMUNITY_BLOG_TITLES,
     ]);
 
-    const followedBlogIds = (result[followedBlogsKey] as string[] | undefined) || [];
+    const dirFollowed = (result[STORAGE_KEY_FOLLOWED_BLOGS] as string[] | undefined) || [];
+    const commFollowed = (result[STORAGE_KEY_FOLLOWED_COMMUNITY_BLOGS] as string[] | undefined) || [];
     const lastVisit = (result[STORAGE_KEY_LAST_DIRECTORY_VISIT] as number | undefined) || null;
-    const currentState = (result[updatesStateKey] as CatalogSourceUpdatesState | undefined) || null;
+    const dirState = (result[STORAGE_KEY_DIRECTORY_UPDATES] as CatalogSourceUpdatesState | undefined) || null;
+    const commState = (result[STORAGE_KEY_COMMUNITY_UPDATES] as CatalogSourceUpdatesState | undefined) || null;
     const settings = (result[STORAGE_KEY_SETTINGS] as ExtensionSettings | undefined) || DEFAULT_SETTINGS;
-    const blogTitles = (result[blogTitlesKey] as Record<string, string> | undefined) || {};
-    const previousUpdateCount = currentState?.updatedCount ?? 0;
+    const dirTitles = (result[STORAGE_KEY_DIRECTORY_BLOG_TITLES] as Record<string, string> | undefined) || {};
+    const commTitles = (result[STORAGE_KEY_COMMUNITY_BLOG_TITLES] as Record<string, string> | undefined) || {};
+
+    const prevDirCount = dirState?.updatedCount ?? 0;
+    const prevCommCount = commState?.updatedCount ?? 0;
 
     // Skip in basic mode
     if (settings.extensionMode === 'basic') {
-      console.log(`[Service Worker] Basic mode - skipping ${name} API check`);
+      console.log('[Service Worker] Basic mode - skipping catalog snapshot check');
       return;
     }
 
-    // Skip if no followed blogs
-    if (followedBlogIds.length === 0) {
-      console.log(`[Service Worker] No followed ${name} blogs, skipping check`);
-      if (!currentState || currentState.syncStatus !== 'synced_empty') {
-        await browser.storage.local.set({
-          [updatesStateKey]: {
-            status: 'success',
-            isEnabled: true,
-            updatedCount: 0,
-            followedCount: 0,
-            totalBlogs: null,
-            lastCheckedAt: Date.now(),
-            nextCheckAt: null,
-            sinceTimestamp: lastVisit,
-            syncStatus: currentState?.syncStatus ?? 'not_synced',
-            lastSyncAt: currentState?.lastSyncAt ?? null,
-          } satisfies CatalogSourceUpdatesState,
-        });
-      }
+    // Skip if no followed blogs in either catalog
+    if (dirFollowed.length === 0 && commFollowed.length === 0) {
+      console.log('[Service Worker] No followed catalog blogs, skipping snapshot check');
       return;
     }
 
-    // Check cache freshness
-    if (!skipCache && currentState?.lastCheckedAt) {
-      const cacheAge = Date.now() - currentState.lastCheckedAt;
-      if (cacheAge < CATALOG_CACHE_TTL_MS) {
-        console.log(`[Service Worker] ${name} cache still fresh, skipping API call`);
+    // Check cache freshness (use the earlier of the two lastCheckedAt values)
+    if (!skipCache) {
+      const dirAge = dirState?.lastCheckedAt ? Date.now() - dirState.lastCheckedAt : Infinity;
+      const commAge = commState?.lastCheckedAt ? Date.now() - commState.lastCheckedAt : Infinity;
+      const minAge = Math.min(dirAge, commAge);
+      if (minAge < CATALOG_CACHE_TTL_MS) {
+        console.log('[Service Worker] Catalog snapshot cache still fresh, skipping API call');
         return;
       }
     }
 
-    console.log(`[Service Worker] Checking ${name} updates from API...`, { skipCache, silent });
+    console.log('[Service Worker] Checking catalog snapshot from API...', { skipCache, silent });
 
-    // Build URL with since parameter
-    let url = apiUrl;
-    if (lastVisit) {
-      url += `?since=${encodeURIComponent(new Date(lastVisit).toISOString())}`;
-    }
-
-    const response = await fetch(url, {
+    const response = await fetch(CATALOG_SNAPSHOT_API, {
       method: 'GET',
       headers: { 'Accept': 'application/json', 'User-Agent': USER_AGENT },
     });
 
     if (!response.ok) {
-      throw new Error(`API returned ${response.status}`);
+      throw new Error(`Catalog snapshot API returned ${response.status}`);
     }
 
-    const data = await response.json() as {
-      updated_blog_ids: string[];
-      last_checked_at: string | null;
-      next_check_at: string | null;
-      total_directory_blogs?: number;
-      total_community_blogs?: number;
-    };
+    const data: SnapshotResponse = await response.json();
 
-    // Count followed blogs with updates
-    const updatedBlogIds = new Set(data.updated_blog_ids);
-    const followedWithUpdates = followedBlogIds.filter(id => updatedBlogIds.has(id));
-    const updatedCount = followedWithUpdates.length;
+    // Filter each catalog locally by lastVisit
+    function filterSection(
+      section: SnapshotSection,
+      followedIds: string[],
+      titles: Record<string, string>
+    ) {
+      const allIds = Object.keys(section.blog_last_post_dates);
+      let relevant = allIds;
+      if (lastVisit) {
+        relevant = relevant.filter((id) => {
+          const date = section.blog_last_post_dates[id];
+          return date && new Date(date).getTime() >= lastVisit;
+        });
+      }
+      const updatedSet = new Set(relevant);
+      const followedWithUpdates = followedIds.filter(id => updatedSet.has(id));
+      return {
+        updatedCount: followedWithUpdates.length,
+        updatedBlogs: Object.keys(titles).length > 0
+          ? followedWithUpdates.map(id => ({ id, title: titles[id] || 'Unknown Blog' }))
+          : undefined,
+        nextCheckAt: section.next_check_at ? new Date(section.next_check_at).getTime() : null,
+        totalBlogs: section.total_blogs,
+      };
+    }
 
-    const updatedBlogs = followedWithUpdates.map(id => ({
-      id,
-      title: blogTitles[id] || 'Unknown Blog',
-    }));
+    const dirResult = filterSection(data.directory, dirFollowed, dirTitles);
+    const commResult = filterSection(data.community, commFollowed, commTitles);
 
-    console.log(`[Service Worker] ${name} check: ${updatedCount} of ${followedBlogIds.length} followed blogs have updates`);
+    const now = Date.now();
 
-    const newState: CatalogSourceUpdatesState = {
+    // Update directory state
+    const newDirState: CatalogSourceUpdatesState = {
       status: 'success',
       isEnabled: true,
-      updatedCount,
-      followedCount: followedBlogIds.length,
-      totalBlogs: data[totalBlogsField] ?? null,
-      lastCheckedAt: Date.now(),
-      nextCheckAt: data.next_check_at ? new Date(data.next_check_at).getTime() : null,
+      updatedCount: dirResult.updatedCount,
+      followedCount: dirFollowed.length,
+      totalBlogs: dirResult.totalBlogs,
+      lastCheckedAt: now,
+      nextCheckAt: dirResult.nextCheckAt,
       sinceTimestamp: lastVisit,
-      syncStatus: currentState?.syncStatus ?? 'synced',
-      lastSyncAt: currentState?.lastSyncAt ?? null,
-      updatedBlogs: Object.keys(blogTitles).length > 0 ? updatedBlogs : undefined,
+      syncStatus: dirState?.syncStatus ?? 'synced',
+      lastSyncAt: dirState?.lastSyncAt ?? null,
+      updatedBlogs: dirResult.updatedBlogs,
     };
 
-    await browser.storage.local.set({ [updatesStateKey]: newState });
+    // Update community state
+    const newCommState: CatalogSourceUpdatesState = {
+      status: 'success',
+      isEnabled: true,
+      updatedCount: commResult.updatedCount,
+      followedCount: commFollowed.length,
+      totalBlogs: commResult.totalBlogs,
+      lastCheckedAt: now,
+      nextCheckAt: commResult.nextCheckAt,
+      sinceTimestamp: lastVisit,
+      syncStatus: commState?.syncStatus ?? 'synced',
+      lastSyncAt: commState?.lastSyncAt ?? null,
+      updatedBlogs: commResult.updatedBlogs,
+    };
 
-    // Update badge
-    const otherSourcesCount = await getOtherSourcesUpdateCount(name);
-    await updateCatalogBadge(updatedCount + otherSourcesCount);
+    await browser.storage.local.set({
+      [STORAGE_KEY_DIRECTORY_UPDATES]: newDirState,
+      [STORAGE_KEY_COMMUNITY_UPDATES]: newCommState,
+    });
 
-    // Send notification if updates increased
-    if (!silent && updatedCount > 0 && updatedCount > previousUpdateCount && settings.blogUpdateNotificationsEnabled) {
-      await sendBlogUpdatesNotification(updatedCount, followedBlogIds.length);
+    console.log(`[Service Worker] Catalog snapshot: dir=${dirResult.updatedCount}/${dirFollowed.length}, comm=${commResult.updatedCount}/${commFollowed.length}`);
+
+    // Update badge with combined count
+    const customState = await getCustomBlogUpdatesState();
+    const customCount = customState?.updatedCount ?? 0;
+    await updateCatalogBadge(dirResult.updatedCount + commResult.updatedCount + customCount);
+
+    // Send notification if total updates increased
+    const totalNew = dirResult.updatedCount + commResult.updatedCount;
+    const totalPrev = prevDirCount + prevCommCount;
+    if (!silent && totalNew > 0 && totalNew > totalPrev && settings.blogUpdateNotificationsEnabled) {
+      const totalFollowed = dirFollowed.length + commFollowed.length;
+      await sendBlogUpdatesNotification(totalNew, totalFollowed);
     }
 
   } catch (error) {
-    console.error(`[Service Worker] Failed to check ${name} updates:`, error);
+    console.error('[Service Worker] Failed to check catalog snapshot:', error);
 
-    const result = await browser.storage.local.get(updatesStateKey);
-    const existingState = (result[updatesStateKey] as CatalogSourceUpdatesState | undefined) || null;
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
 
-    const errorState: CatalogSourceUpdatesState = {
+    // Update both states with error
+    const [dirRes, commRes] = await Promise.all([
+      browser.storage.local.get(STORAGE_KEY_DIRECTORY_UPDATES),
+      browser.storage.local.get(STORAGE_KEY_COMMUNITY_UPDATES),
+    ]);
+
+    const existingDir = (dirRes[STORAGE_KEY_DIRECTORY_UPDATES] as CatalogSourceUpdatesState | undefined) || null;
+    const existingComm = (commRes[STORAGE_KEY_COMMUNITY_UPDATES] as CatalogSourceUpdatesState | undefined) || null;
+
+    const makeErrorState = (existing: CatalogSourceUpdatesState | null): CatalogSourceUpdatesState => ({
       status: 'error',
       isEnabled: true,
-      updatedCount: existingState?.updatedCount ?? 0,
-      followedCount: existingState?.followedCount ?? 0,
-      totalBlogs: existingState?.totalBlogs ?? null,
+      updatedCount: existing?.updatedCount ?? 0,
+      followedCount: existing?.followedCount ?? 0,
+      totalBlogs: existing?.totalBlogs ?? null,
       lastCheckedAt: Date.now(),
       nextCheckAt: null,
-      sinceTimestamp: existingState?.sinceTimestamp ?? null,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      syncStatus: existingState?.syncStatus ?? 'not_synced',
-      lastSyncAt: existingState?.lastSyncAt ?? null,
-    };
+      sinceTimestamp: existing?.sinceTimestamp ?? null,
+      error: errorMsg,
+      syncStatus: existing?.syncStatus ?? 'not_synced',
+      lastSyncAt: existing?.lastSyncAt ?? null,
+    });
 
-    await browser.storage.local.set({ [updatesStateKey]: errorState });
+    await browser.storage.local.set({
+      [STORAGE_KEY_DIRECTORY_UPDATES]: makeErrorState(existingDir),
+      [STORAGE_KEY_COMMUNITY_UPDATES]: makeErrorState(existingComm),
+    });
   }
-}
-
-/**
- * Force check for catalog source updates (bypasses cache)
- */
-export async function forceCheckCatalogSource(config: CatalogSourceConfig): Promise<void> {
-  console.log(`[Service Worker] Force checking ${config.name} updates...`);
-  await checkCatalogSourceUpdates(config, { skipCache: true, silent: true });
 }

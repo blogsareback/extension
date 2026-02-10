@@ -22,9 +22,6 @@ export const STORAGE_KEY_CUSTOM_BLOGS = 'customBlogs';
 export const STORAGE_KEY_CUSTOM_BLOG_UPDATES = 'customBlogUpdates';
 export const STORAGE_KEY_FLOATING_BUTTON_DISMISSED = 'floatingButtonDismissed'; // Domains where floating button is hidden
 
-// Directory updates API endpoint
-export const DIRECTORY_UPDATES_API_URL = 'https://www.blogsareback.com/api/directory/updates';
-
 // Directory updates badge color (distinct from feed discovery blue)
 export const DIRECTORY_BADGE_COLOR = '#ef4444'; // Red
 
