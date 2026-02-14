@@ -224,7 +224,15 @@ async function fetchNewestPostDate(
       }
 
       // Quick regex-based date extraction (much faster than full parsing)
-      // Look for common date patterns in RSS/Atom feeds
+      // Search within first <item> or <entry> to get the newest post's date,
+      // not a stale channel-level date
+      const itemIdx = xml.search(/<item[\s>]/i);
+      const entryIdx = xml.search(/<entry[\s>]/i);
+      const firstItemIndex = itemIdx >= 0 && entryIdx >= 0
+        ? Math.min(itemIdx, entryIdx)
+        : Math.max(itemIdx, entryIdx);
+      const searchXml = firstItemIndex >= 0 ? xml.slice(firstItemIndex) : xml;
+
       const datePatterns = [
         /<pubDate>([^<]+)<\/pubDate>/i,
         /<updated>([^<]+)<\/updated>/i,
@@ -233,7 +241,7 @@ async function fetchNewestPostDate(
       ];
 
       for (const pattern of datePatterns) {
-        const match = xml.match(pattern);
+        const match = searchXml.match(pattern);
         if (match && match[1]) {
           const date = new Date(match[1].trim());
           if (!isNaN(date.getTime())) {
@@ -299,25 +307,35 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
 
     // Define processor for each blog
     const processBlog = async (blog: CustomBlogSyncData): Promise<CustomBlogState> => {
+      // Look up existing state for this blog (from previous check or acknowledge)
+      const existingState = currentState?.blogs.find(b => b.feedUrl === blog.feedUrl);
+
+      // Baseline comes from extension-maintained state only.
+      // Sync seeds lastKnownPostDate for new blogs; acknowledge advances it.
+      const effectiveBaseline = existingState?.lastKnownPostDate
+        ?? existingState?.currentPostDate
+        ?? null;
+
       try {
-        // Pass lastPostDate for HEAD optimization and prefetch setting
+        // Pass effectiveBaseline for HEAD optimization and prefetch setting
         const newestPostDate = await fetchNewestPostDate(
           blog.feedUrl,
-          blog.lastPostDate,
+          effectiveBaseline,
           {
             timeoutMs: settings.requestTimeoutSeconds * 1000,
             cacheContent: prefetchOnUpdate,
           }
         );
 
+        // Only flag updates when we have both a baseline and a newer date
         const hasUpdates = newestPostDate !== null &&
-          blog.lastPostDate !== null &&
-          newestPostDate > blog.lastPostDate;
+          effectiveBaseline !== null &&
+          newestPostDate > effectiveBaseline;
 
         return {
           feedUrl: blog.feedUrl,
           title: blog.title,
-          lastKnownPostDate: blog.lastPostDate,
+          lastKnownPostDate: effectiveBaseline,
           currentPostDate: newestPostDate,
           lastCheckedAt: Date.now(),
           hasUpdates,
@@ -326,13 +344,10 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
       } catch (error) {
         console.warn(`[Service Worker] Failed to check ${blog.feedUrl}:`, error);
 
-        // Find existing state for this blog if it exists
-        const existingState = currentState?.blogs.find(b => b.feedUrl === blog.feedUrl);
-
         return {
           feedUrl: blog.feedUrl,
           title: blog.title,
-          lastKnownPostDate: blog.lastPostDate,
+          lastKnownPostDate: effectiveBaseline,
           currentPostDate: existingState?.currentPostDate ?? null,
           lastCheckedAt: Date.now(),
           hasUpdates: existingState?.hasUpdates ?? false,
@@ -349,9 +364,29 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
       { maxConcurrent, delayMs }
     );
 
-    // Count updates
     for (const state of processedStates) {
       blogStates.push(state);
+    }
+
+    // Re-read state to pick up any concurrent acknowledge that advanced baselines
+    // (e.g., ACKNOWLEDGE_UPDATES arrived while we were fetching feeds).
+    // Everything between this read and the write below is synchronous,
+    // so no other handler can interleave.
+    const freshState = await getCustomBlogUpdatesState();
+    if (freshState) {
+      for (const state of blogStates) {
+        const fresh = freshState.blogs.find(b => b.feedUrl === state.feedUrl);
+        if (fresh && fresh.lastKnownPostDate !== null &&
+          (state.lastKnownPostDate === null || fresh.lastKnownPostDate > state.lastKnownPostDate)) {
+          // Acknowledge advanced this blog's baseline — use it
+          state.lastKnownPostDate = fresh.lastKnownPostDate;
+          state.hasUpdates = state.currentPostDate !== null && state.currentPostDate > fresh.lastKnownPostDate;
+        }
+      }
+    }
+
+    // Count updates after merging
+    for (const state of blogStates) {
       if (state.hasUpdates) {
         updatedCount++;
       }
@@ -613,23 +648,36 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
         [STORAGE_KEY_CUSTOM_BLOG_UPDATES]: emptyCustomState,
       });
     } else {
-      // Initialize custom blog state
-      const blogStates: CustomBlogState[] = customBlogs.map((blog) => ({
-        feedUrl: blog.feedUrl,
-        title: blog.title,
-        lastKnownPostDate: blog.lastPostDate,
-        currentPostDate: null,
-        lastCheckedAt: null,
-        hasUpdates: false,
-        errorCount: 0,
-      }));
+      // Preserve existing blog state across syncs (sync manages the list, not baselines)
+      const existingCustomState = await getCustomBlogUpdatesState();
+      const existingBlogMap = new Map(
+        existingCustomState?.blogs.map(b => [b.feedUrl, b]) ?? []
+      );
+
+      const blogStates: CustomBlogState[] = customBlogs.map((blog) => {
+        const existing = existingBlogMap.get(blog.feedUrl);
+        if (existing) {
+          // Existing blog: preserve all state, just update title
+          return { ...existing, title: blog.title };
+        }
+        // New blog: seed baseline from web app
+        return {
+          feedUrl: blog.feedUrl,
+          title: blog.title,
+          lastKnownPostDate: blog.lastPostDate,
+          currentPostDate: null,
+          lastCheckedAt: null,
+          hasUpdates: false,
+          errorCount: 0,
+        };
+      });
 
       const checkingCustomState: CustomBlogUpdatesState = {
         status: 'checking',
         blogs: blogStates,
-        updatedCount: 0,
+        updatedCount: blogStates.filter(b => b.hasUpdates).length,
         totalCount: customBlogs.length,
-        lastCheckedAt: null,
+        lastCheckedAt: existingCustomState?.lastCheckedAt ?? null,
         lastSyncAt: now,
       };
       await browser.storage.local.set({
