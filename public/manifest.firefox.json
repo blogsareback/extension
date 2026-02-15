@@ -1,9 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Blogs Are Back - Feed Fetcher",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "description": "Fetch RSS/Atom feeds directly from your browser for Blogs Are Back",
-  "permissions": ["storage", "contextMenus", "tabs", "notifications", "alarms"],
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "tabs",
+    "notifications",
+    "alarms",
+    "scripting"
+  ],
   "host_permissions": ["<all_urls>"],
   "background": {
     "scripts": ["service-worker.js"],

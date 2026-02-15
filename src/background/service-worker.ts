@@ -1108,6 +1108,41 @@ if (navigator.storage && navigator.storage.persist) {
 createOptionsContextMenu();
 
 // ============================================
+// Inject content script into already-open tabs on startup
+// ============================================
+// Runs on every service worker startup (install, update, re-enable, browser launch).
+// Re-injecting is harmless — the content script just sets window.__BLOGS_ARE_BACK_EXTENSION__.
+
+async function injectContentScriptIntoOpenTabs() {
+  try {
+    const tabs = await browser.tabs.query({
+      url: [
+        'https://blogsareback.com/*',
+        'https://*.blogsareback.com/*',
+      ],
+    });
+
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+
+      try {
+        await browser.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content-script.js'],
+        });
+        console.log(`[Service Worker] Injected content script into tab ${tab.id}: ${tab.url}`);
+      } catch (error) {
+        console.log(`[Service Worker] Failed to inject into tab ${tab.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.log('[Service Worker] Failed to query/inject tabs:', error);
+  }
+}
+
+injectContentScriptIntoOpenTabs();
+
+// ============================================
 // Startup & Periodic Directory Updates Check
 // ============================================
 
