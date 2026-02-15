@@ -376,11 +376,23 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
     if (freshState) {
       for (const state of blogStates) {
         const fresh = freshState.blogs.find(b => b.feedUrl === state.feedUrl);
-        if (fresh && fresh.lastKnownPostDate !== null &&
+        if (!fresh) continue;
+
+        // Case 1: Acknowledge advanced the baseline — use it
+        if (fresh.lastKnownPostDate !== null &&
           (state.lastKnownPostDate === null || fresh.lastKnownPostDate > state.lastKnownPostDate)) {
-          // Acknowledge advanced this blog's baseline — use it
           state.lastKnownPostDate = fresh.lastKnownPostDate;
           state.hasUpdates = state.currentPostDate !== null && state.currentPostDate > fresh.lastKnownPostDate;
+        }
+        // Case 2: Blog was acknowledged (hasUpdates cleared) but baselines match
+        // This catches edge cases where acknowledge set lastKnownPostDate = effectiveBaseline
+        // (e.g., when lastKnownPostDate was null and currentPostDate was used as fallback)
+        else if (!fresh.hasUpdates && state.hasUpdates &&
+          fresh.lastKnownPostDate !== null &&
+          state.currentPostDate !== null &&
+          state.currentPostDate <= fresh.lastKnownPostDate) {
+          state.lastKnownPostDate = fresh.lastKnownPostDate;
+          state.hasUpdates = false;
         }
       }
     }
@@ -672,22 +684,44 @@ export async function handleSyncAllBlogs(message: SyncAllBlogsRequest): Promise<
         };
       });
 
-      const checkingCustomState: CustomBlogUpdatesState = {
-        status: 'checking',
-        blogs: blogStates,
-        updatedCount: blogStates.filter(b => b.hasUpdates).length,
-        totalCount: customBlogs.length,
-        lastCheckedAt: existingCustomState?.lastCheckedAt ?? null,
-        lastSyncAt: now,
-      };
-      await browser.storage.local.set({
-        [STORAGE_KEY_CUSTOM_BLOG_UPDATES]: checkingCustomState,
-      });
+      const pendingUpdatedCount = blogStates.filter(b => b.hasUpdates).length;
 
-      // Check custom blog updates (don't await - let it run in background)
-      checkCustomBlogUpdates({ silent: true }).catch((error) => {
-        console.error('[Service Worker] Custom blog updates check failed:', error);
-      });
+      // If there are pending updates, the user is visiting the dashboard
+      // and will acknowledge them. Don't trigger a new check — it would race
+      // with the acknowledge and could overwrite the cleared state.
+      // The periodic alarm will handle the next check.
+      if (pendingUpdatedCount > 0) {
+        const preservedCustomState: CustomBlogUpdatesState = {
+          status: existingCustomState?.status === 'error' ? 'error' : 'success',
+          blogs: blogStates,
+          updatedCount: pendingUpdatedCount,
+          totalCount: customBlogs.length,
+          lastCheckedAt: existingCustomState?.lastCheckedAt ?? null,
+          lastSyncAt: now,
+          ...(existingCustomState?.error ? { error: existingCustomState.error } : {}),
+        };
+        await browser.storage.local.set({
+          [STORAGE_KEY_CUSTOM_BLOG_UPDATES]: preservedCustomState,
+        });
+        console.log(`[Service Worker] Skipping custom blog check — ${pendingUpdatedCount} pending updates will be acknowledged`);
+      } else {
+        const checkingCustomState: CustomBlogUpdatesState = {
+          status: 'checking',
+          blogs: blogStates,
+          updatedCount: 0,
+          totalCount: customBlogs.length,
+          lastCheckedAt: existingCustomState?.lastCheckedAt ?? null,
+          lastSyncAt: now,
+        };
+        await browser.storage.local.set({
+          [STORAGE_KEY_CUSTOM_BLOG_UPDATES]: checkingCustomState,
+        });
+
+        // Check custom blog updates (don't await - let it run in background)
+        checkCustomBlogUpdates({ silent: true }).catch((error) => {
+          console.error('[Service Worker] Custom blog updates check failed:', error);
+        });
+      }
     }
 
   } catch (error) {
