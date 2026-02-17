@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Settings, BookOpen, ArrowUpRight } from 'lucide-react';
+import GithubIcon from '@/assets/github';
 import { useDiscoveredFeeds } from './hooks/useDiscoveredFeeds';
 import { useSubscriptionQueue } from './hooks/useSubscriptionQueue';
 import { useCatalogUpdates } from './hooks/useCatalogUpdates';
@@ -308,7 +309,19 @@ export default function Popup() {
             <span>Open Reader</span>
             <ArrowUpRight className="size-3.5 opacity-50" />
           </a>
-          <p className="text-center text-[10px] text-muted-foreground/50 mt-2">v{EXTENSION_VERSION}</p>
+          <p className="text-center text-[10px] text-muted-foreground/50 mt-2 flex items-center justify-center gap-1.5">
+            <span>v{EXTENSION_VERSION}</span>
+            <span aria-hidden="true">&middot;</span>
+            <a
+              href="https://github.com/blogsareback/extension"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 hover:text-muted-foreground transition-colors"
+            >
+              <GithubIcon className="size-2.5" />
+              <span>Source</span>
+            </a>
+          </p>
         </footer>
       </div>
     </ThemeProvider>

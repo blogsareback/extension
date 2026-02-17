@@ -6,6 +6,7 @@ import SettingsRoute from './routes/settings'
 import HiddenSitesRoute from './routes/hidden-sites'
 import SavedPostsRoute from './routes/saved-posts'
 import SavedPostReaderRoute from './routes/saved-post-reader'
+import GithubIcon from '@/assets/github'
 import { EXTENSION_VERSION } from '@/utils/constants'
 import { DASHBOARD_BASE_URL } from '@/background/utils/constants'
 
@@ -36,8 +37,18 @@ export default function App() {
             >
               Open Blogs Are Back
             </a>
-            <span className="text-xs text-muted-foreground">
-              Blogs Are Back Extension v{EXTENSION_VERSION}
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <span>v{EXTENSION_VERSION}</span>
+              <span aria-hidden="true">&middot;</span>
+              <a
+                href="https://github.com/blogsareback/extension"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+              >
+                <GithubIcon className="size-3" />
+                <span>Source</span>
+              </a>
             </span>
           </footer>
         </div>
