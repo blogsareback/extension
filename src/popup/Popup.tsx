@@ -2,6 +2,7 @@ import React from 'react';
 import browser from '../utils/browser';
 import type { FetchStats, LegacyFetchStats } from '../utils/types';
 import { STORAGE_KEY_STATS } from '../utils/constants';
+import { STORAGE_KEY_ANALYTICS_NOTICE_VIEWS } from '@/background/utils/constants';
 import { createEmptyStats } from '@/background/storage/stats';
 import { ThemeProvider } from '@/components/theme-provier';
 import ThemeToggle from '@/components/theme-toggle';
@@ -94,6 +95,7 @@ export default function Popup() {
     useSavedPostsCount();
   const [stats, setStats] = React.useState<FetchStats>(createEmptyStats);
   const [activeTab, setActiveTab] = React.useState<TabId>(getSavedTab);
+  const [showAnalyticsNotice, setShowAnalyticsNotice] = React.useState(false);
 
   const changeTab = (tab: TabId) => {
     setActiveTab(tab);
@@ -119,6 +121,18 @@ export default function Popup() {
         browser.storage.local.set({ [STORAGE_KEY_STATS]: migrated });
       } else {
         setStats(stored as FetchStats);
+      }
+    });
+  }, []);
+
+  // Show analytics notice for the first 3 popup opens, then auto-retire
+  const ANALYTICS_NOTICE_MAX_VIEWS = 3;
+  React.useEffect(() => {
+    browser.storage.local.get(STORAGE_KEY_ANALYTICS_NOTICE_VIEWS).then((result) => {
+      const views = (result[STORAGE_KEY_ANALYTICS_NOTICE_VIEWS] as number) || 0;
+      if (views < ANALYTICS_NOTICE_MAX_VIEWS) {
+        setShowAnalyticsNotice(true);
+        browser.storage.local.set({ [STORAGE_KEY_ANALYTICS_NOTICE_VIEWS]: views + 1 });
       }
     });
   }, []);
@@ -228,8 +242,8 @@ export default function Popup() {
               )}
 
               {!feedsLoading && feeds.length === 0 && (
-                <p className="text-sm text-muted-foreground py-2">
-                  No feeds detected on this page.
+                <p className="text-sm text-muted-foreground py-2 text-center">
+                  No feeds detected on this page
                 </p>
               )}
 
@@ -260,6 +274,24 @@ export default function Popup() {
                   <SavedPostsSummary count={savedPostsCount} />
                 )}
               </section>
+
+              {/* Analytics notice — shown for first few popup opens */}
+              {showAnalyticsNotice && (
+                <p className="text-[11px] text-muted-foreground/70 leading-relaxed text-center">
+                  This extension sends anonymous usage stats. You can change this anytime in{' '}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:text-foreground transition-colors"
+                    onClick={() => {
+                      browser.tabs.create({
+                        url: browser.runtime.getURL('src/main/main.html#/settings'),
+                      });
+                    }}
+                  >
+                    Settings
+                  </button>
+                </p>
+              )}
             </div>
           )}
 

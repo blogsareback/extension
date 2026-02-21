@@ -12,10 +12,17 @@ import {
   STORAGE_KEY_SUBSCRIPTION_QUEUE,
   STORAGE_KEY_SETTINGS,
   DIRECTORY_CHECK_ALARM,
+  TELEMETRY_ALARM,
+  TELEMETRY_INTERVAL_MINUTES,
 } from './utils/constants';
 import { getSettings, updateSettings, clearData } from './storage/settings';
 import { updateStats, type UpdateStatsParams } from './storage/stats';
 import { updateAnalytics, getAnalyticsSummary } from './storage/analytics';
+import {
+  getOrCreateInstallationId,
+  setLinkedUserId,
+  sendTelemetryHeartbeat,
+} from './storage/telemetry';
 import type { ErrorCategory } from '../utils/types';
 import {
   getDirectoryUpdatesState,
@@ -424,7 +431,12 @@ browser.runtime.onMessage.addListener(
       // This is the new message type that syncs both directory and custom blogs
       if (message.type === 'SYNC_ALL_BLOGS') {
         const request = message as SyncAllBlogsRequest;
-        handleSyncAllBlogs(request).then(() => {
+        handleSyncAllBlogs(request).then(async () => {
+          // Link userId for telemetry if provided
+          if (request.userId) {
+            await setLinkedUserId(request.userId);
+            sendTelemetryHeartbeat().catch(console.warn);
+          }
           sendResponse({ success: true });
         });
         return true; // Async response
@@ -1108,6 +1120,17 @@ if (navigator.storage && navigator.storage.persist) {
 createOptionsContextMenu();
 
 // ============================================
+// Installation & Telemetry Setup
+// ============================================
+
+browser.runtime.onInstalled.addListener(async (details) => {
+  await getOrCreateInstallationId();
+  if (details.reason === 'install') {
+    sendTelemetryHeartbeat().catch(console.warn);
+  }
+});
+
+// ============================================
 // Inject content script into already-open tabs on startup
 // ============================================
 // Runs on every service worker startup (install, update, re-enable, browser launch).
@@ -1184,6 +1207,12 @@ setupPeriodicCheckAlarm().catch((error) => {
   console.log('[Service Worker] Failed to setup periodic check alarm:', error);
 });
 
+// Set up daily telemetry heartbeat alarm
+browser.alarms.create(TELEMETRY_ALARM, {
+  periodInMinutes: TELEMETRY_INTERVAL_MINUTES,
+  delayInMinutes: 5,
+});
+
 browser.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === DIRECTORY_CHECK_ALARM) {
     console.log('[Service Worker] Periodic catalog updates check triggered');
@@ -1197,6 +1226,9 @@ browser.alarms.onAlarm.addListener((alarm) => {
         });
       }
     });
+  }
+  if (alarm.name === TELEMETRY_ALARM) {
+    sendTelemetryHeartbeat().catch(console.warn);
   }
 });
 

@@ -380,7 +380,7 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
 
         // Case 1: Acknowledge advanced the baseline — use it
         if (fresh.lastKnownPostDate !== null &&
-          (state.lastKnownPostDate === null || fresh.lastKnownPostDate > state.lastKnownPostDate)) {
+            (state.lastKnownPostDate === null || fresh.lastKnownPostDate > state.lastKnownPostDate)) {
           state.lastKnownPostDate = fresh.lastKnownPostDate;
           state.hasUpdates = state.currentPostDate !== null && state.currentPostDate > fresh.lastKnownPostDate;
         }
@@ -388,9 +388,9 @@ export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Pr
         // This catches edge cases where acknowledge set lastKnownPostDate = effectiveBaseline
         // (e.g., when lastKnownPostDate was null and currentPostDate was used as fallback)
         else if (!fresh.hasUpdates && state.hasUpdates &&
-          fresh.lastKnownPostDate !== null &&
-          state.currentPostDate !== null &&
-          state.currentPostDate <= fresh.lastKnownPostDate) {
+                 fresh.lastKnownPostDate !== null &&
+                 state.currentPostDate !== null &&
+                 state.currentPostDate <= fresh.lastKnownPostDate) {
           state.lastKnownPostDate = fresh.lastKnownPostDate;
           state.hasUpdates = false;
         }

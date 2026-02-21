@@ -256,10 +256,10 @@ export function StatsSection({ stats }: StatsSectionProps) {
         </p>
       )}
 
-      {/* Tracking period */}
+      {/* Logging period */}
       {hasAnyData && (
         <p className="text-xs text-muted-foreground text-center">
-          Tracking since {new Date(stats.startedAt).toLocaleDateString()}
+          Logging since {new Date(stats.startedAt).toLocaleDateString()}
         </p>
       )}
     </div>

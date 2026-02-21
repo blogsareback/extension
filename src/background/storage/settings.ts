@@ -32,6 +32,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   requestTimeoutSeconds: 30, // 30 second timeout
   maxConcurrentRequests: 10, // Up to 10 concurrent requests
   requestDelayMs: 0, // No delay between requests by default
+  // Privacy
+  analyticsEnabled: true, // Enabled by default
   // UI preferences
   advancedSettingsExpanded: false, // Collapsed by default
 };

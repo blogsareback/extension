@@ -629,6 +629,10 @@ export interface ExtensionSettings {
   /** Delay between consecutive requests in milliseconds */
   requestDelayMs: number;
 
+  // Privacy
+  /** Whether anonymous telemetry is enabled */
+  analyticsEnabled: boolean;
+
   // UI Preferences
   /** Whether the advanced settings section is expanded */
   advancedSettingsExpanded: boolean;
@@ -664,6 +668,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   requestTimeoutSeconds: 30, // 30 second timeout
   maxConcurrentRequests: 10, // Up to 10 concurrent requests
   requestDelayMs: 0, // No delay between requests by default
+
+  // Privacy
+  analyticsEnabled: true, // Enabled by default
 
   // UI preferences
   advancedSettingsExpanded: false, // Collapsed by default
@@ -719,6 +726,7 @@ export interface SyncAllBlogsRequest {
   customBlogs: CustomBlogSyncData[];
   followedFeedUrls: string[]; // All followed feed URLs for duplicate detection
   lastVisit: number | null; // Timestamp (ms) of last visit
+  userId?: string; // Supabase user ID for linking telemetry
 }
 
 /**
@@ -1281,6 +1289,33 @@ export interface ImportSavedPostsResponse {
   skipped?: number;
   errors?: number;
   error?: string;
+}
+
+// ============================================
+// Telemetry Types
+// ============================================
+
+/**
+ * Payload sent to the telemetry endpoint
+ */
+export interface TelemetryPayload {
+  installationId: string;
+  userId: string | null;
+  extensionVersion: string;
+  extensionMode: ExtensionMode;
+  browser: 'chrome' | 'firefox';
+  analytics: AnalyticsSummary | null;
+  features: {
+    feedDiscoveryEnabled: boolean;
+    floatingButtonEnabled: boolean;
+    notificationsEnabled: boolean;
+    newPostBadgeEnabled: boolean;
+    prefetchOnUpdate: boolean;
+    backgroundCustomBlogChecks: boolean;
+    followedBlogCount: number;
+    customBlogCount: number;
+    savedPostsCount: number;
+  };
 }
 
 // Window augmentation for extension flags

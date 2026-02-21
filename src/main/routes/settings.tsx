@@ -420,6 +420,31 @@ export default function SettingsRoute() {
         </ItemGroup>
       </section>
 
+      {/* Privacy Section */}
+      <section className="mb-6">
+        <h3 className="text-sm font-medium text-muted-foreground mb-3">
+          Privacy
+        </h3>
+        <ItemGroup className="rounded-lg border border-border">
+          <Item>
+            <ItemContent>
+              <ItemTitle>Anonymous analytics</ItemTitle>
+              <ItemDescription>
+                Send anonymous usage data to help improve Blogs Are Back. No personal information is collected.
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Switch
+                checked={settings.analyticsEnabled}
+                onCheckedChange={(checked) =>
+                  updateSettings({ analyticsEnabled: checked })
+                }
+              />
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </section>
+
       {/* Advanced Settings Section */}
       <section className="mb-6">
         <button
