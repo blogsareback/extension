@@ -22,6 +22,7 @@ import {
   getOrCreateInstallationId,
   setLinkedUserId,
   sendTelemetryHeartbeat,
+  incrementEngagement,
 } from './storage/telemetry';
 import type { ErrorCategory } from '../utils/types';
 import {
@@ -435,7 +436,7 @@ browser.runtime.onMessage.addListener(
           // Link userId for telemetry if provided
           if (request.userId) {
             await setLinkedUserId(request.userId);
-            sendTelemetryHeartbeat().catch(console.warn);
+            sendTelemetryHeartbeat({ reason: 'user-link' }).catch(console.warn);
           }
           sendResponse({ success: true });
         });
@@ -679,8 +680,14 @@ browser.runtime.onMessage.addListener(
       // Handle UPDATE_SETTINGS
       if (message.type === 'UPDATE_SETTINGS') {
         const request = message as UpdateSettingsRequest;
+        const modeChanging = request.settings.extensionMode !== undefined
+          ? getSettings().then((current) => current.extensionMode !== request.settings.extensionMode)
+          : Promise.resolve(false);
         updateSettings(request.settings)
-          .then((settings) => {
+          .then(async (settings) => {
+            if (await modeChanging) {
+              incrementEngagement('modeChanges').catch(console.warn);
+            }
             // Clear badge immediately when new post badge is disabled
             if (request.settings.newPostBadgeEnabled === false) {
               updateCatalogBadge(0);
@@ -1126,7 +1133,9 @@ createOptionsContextMenu();
 browser.runtime.onInstalled.addListener(async (details) => {
   await getOrCreateInstallationId();
   if (details.reason === 'install') {
-    sendTelemetryHeartbeat().catch(console.warn);
+    sendTelemetryHeartbeat({ reason: 'install' }).catch(console.warn);
+  } else if (details.reason === 'update') {
+    sendTelemetryHeartbeat({ reason: 'update', previousVersion: details.previousVersion }).catch(console.warn);
   }
 });
 
@@ -1228,7 +1237,7 @@ browser.alarms.onAlarm.addListener((alarm) => {
     });
   }
   if (alarm.name === TELEMETRY_ALARM) {
-    sendTelemetryHeartbeat().catch(console.warn);
+    sendTelemetryHeartbeat({ reason: 'alarm' }).catch(console.warn);
   }
 });
 
@@ -1250,6 +1259,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 
 // Handle notification clicks - open Blogs Are Back
 browser.notifications.onClicked.addListener((notificationId) => {
+  incrementEngagement('notificationClicks').catch(console.warn);
   if (notificationId === 'blog-updates') {
     browser.tabs.create({ url: DASHBOARD_BASE_URL });
     browser.notifications.clear(notificationId);

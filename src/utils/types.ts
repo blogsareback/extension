@@ -1295,6 +1295,18 @@ export interface ImportSavedPostsResponse {
 // Telemetry Types
 // ============================================
 
+/** What triggered a telemetry heartbeat */
+export type HeartbeatReason = 'install' | 'update' | 'alarm' | 'user-link';
+
+/** Lifetime engagement counters (simple totals, server computes deltas) */
+export interface EngagementCounters {
+  feedSubscriptions: number;
+  notificationsShown: number;
+  notificationClicks: number;
+  popupOpens: number;
+  modeChanges: number;
+}
+
 /**
  * Payload sent to the telemetry endpoint
  */
@@ -1304,7 +1316,12 @@ export interface TelemetryPayload {
   extensionVersion: string;
   extensionMode: ExtensionMode;
   browser: 'chrome' | 'firefox';
+  installedAt: number;
+  heartbeatReason: HeartbeatReason;
+  previousVersion?: string;
   analytics: AnalyticsSummary | null;
+  engagement: EngagementCounters;
+  customizations?: Partial<ExtensionSettings>;
   features: {
     feedDiscoveryEnabled: boolean;
     floatingButtonEnabled: boolean;

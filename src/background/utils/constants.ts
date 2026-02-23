@@ -91,8 +91,10 @@ export const SAVED_POST_MIN_FULL_CONTENT_LENGTH = 500; // Minimum chars to consi
 
 // Telemetry configuration
 export const STORAGE_KEY_INSTALLATION_ID = 'installationId';
+export const STORAGE_KEY_INSTALLED_AT = 'installedAt';
 export const STORAGE_KEY_LINKED_USER_ID = 'linkedUserId';
 export const STORAGE_KEY_ANALYTICS_NOTICE_VIEWS = 'analyticsNoticeViews';
+export const STORAGE_KEY_ENGAGEMENT = 'engagement';
 export const TELEMETRY_API = `${BASE_URL}/api/analytics/extension-telemetry`;
 export const TELEMETRY_ALARM = 'telemetry-heartbeat';
 export const TELEMETRY_INTERVAL_MINUTES = 1440; // 24 hours

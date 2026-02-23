@@ -2,7 +2,7 @@ import React from 'react';
 import browser from '../utils/browser';
 import type { FetchStats, LegacyFetchStats } from '../utils/types';
 import { STORAGE_KEY_STATS } from '../utils/constants';
-import { STORAGE_KEY_ANALYTICS_NOTICE_VIEWS } from '@/background/utils/constants';
+import { STORAGE_KEY_ANALYTICS_NOTICE_VIEWS, STORAGE_KEY_ENGAGEMENT } from '@/background/utils/constants';
 import { createEmptyStats } from '@/background/storage/stats';
 import { ThemeProvider } from '@/components/theme-provier';
 import ThemeToggle from '@/components/theme-toggle';
@@ -134,6 +134,17 @@ export default function Popup() {
         setShowAnalyticsNotice(true);
         browser.storage.local.set({ [STORAGE_KEY_ANALYTICS_NOTICE_VIEWS]: views + 1 });
       }
+    });
+  }, []);
+
+  // Track popup opens for engagement telemetry
+  React.useEffect(() => {
+    browser.storage.local.get(STORAGE_KEY_ENGAGEMENT).then((result) => {
+      const engagement = (result[STORAGE_KEY_ENGAGEMENT] as Record<string, number>) || {};
+      const current = engagement.popupOpens || 0;
+      browser.storage.local.set({
+        [STORAGE_KEY_ENGAGEMENT]: { ...engagement, popupOpens: current + 1 },
+      });
     });
   }, []);
 

@@ -3,6 +3,7 @@
  */
 
 import browser from '../../utils/browser';
+import { incrementEngagement } from '../storage/telemetry';
 
 /**
  * Send a push notification about blog updates
@@ -27,6 +28,7 @@ export async function sendBlogUpdatesNotification(
       message,
       priority: 1,
     });
+    incrementEngagement('notificationsShown').catch(console.warn);
 
     console.log('[Service Worker] Sent blog updates notification');
   } catch (error) {
@@ -57,6 +59,7 @@ export async function sendCustomBlogNotification(
       message,
       priority: 1,
     });
+    incrementEngagement('notificationsShown').catch(console.warn);
 
     console.log('[Service Worker] Sent custom blog updates notification');
   } catch (error) {

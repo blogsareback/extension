@@ -36,7 +36,6 @@ A privacy-focused browser extension that fetches RSS/Atom feeds directly from yo
    ```
 
 3. **Load in Chrome**
-
    - Open Chrome and navigate to `chrome://extensions/`
    - Enable "Developer mode" (toggle in top right)
    - Click "Load unpacked"
@@ -244,12 +243,9 @@ Valid feeds for testing:
 - Verify service worker isn't crashing
 - Try resetting: Right-click extension → Options → Clear stats
 
-## Privacy Policy
+## Privacy
 
-This extension:
-
-- Fetches feeds directly from source websites
-- Does not collect, store, or transmit any user data to third parties
-- Does not log or track feed URLs
-- Only communicates with the Blogs Are Back web app you're visiting
-- Is open source and auditable
+- Feed content is fetched directly from source websites and doesn't touch our servers
+- No browsing history, page URLs, or personal data is collected
+- Usage telemetry (aggregate counts, extension version) can be disabled in Settings
+- Open source and auditable

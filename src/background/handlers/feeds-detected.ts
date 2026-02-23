@@ -17,6 +17,7 @@ const FEED_PARENT_MENU_ID = 'blogs-are-back-parent';
 const FEED_MENU_PREFIX = 'subscribe-feed-';
 import { normalizeUrl } from '../utils/fetch';
 import { getSettings } from '../storage/settings';
+import { incrementEngagement } from '../storage/telemetry';
 import { probeCommonPaths } from './feed-probe';
 import type { FeedLink, FeedsDetectedMessage, QueuedSubscription, ProbeCacheEntry } from '../../utils/types';
 
@@ -360,9 +361,12 @@ export async function handleContextMenuClick(
     feedTitle: feed.title,
   });
 
+  incrementEngagement('feedSubscriptions').catch(console.warn);
+
   // Show a notification that the feed was queued (if enabled)
   const settings = await getSettings();
   if (settings.notificationsEnabled) {
+    incrementEngagement('notificationsShown').catch(console.warn);
     browser.notifications.create({
       type: 'basic',
       iconUrl: browser.runtime.getURL('icons/icon48.png'),
