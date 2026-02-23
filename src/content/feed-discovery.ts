@@ -103,18 +103,31 @@ function init(): void {
     notifyServiceWorker(feeds);
   }
 
-  // Also check for dynamically added feeds
+  // Also check for dynamically added feeds.
+  // Debounce to avoid rapid-fire messages when a page adds multiple <link> tags.
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   const observer = new MutationObserver((mutations) => {
+    let hasNewFeedLink = false;
     for (const mutation of mutations) {
       if (mutation.type === 'childList') {
         for (const node of mutation.addedNodes) {
           if (node instanceof HTMLLinkElement && node.rel === 'alternate') {
-            const feeds = discoverFeeds();
-            notifyServiceWorker(feeds);
-            return; // Only notify once per batch
+            hasNewFeedLink = true;
+            break;
           }
         }
       }
+      if (hasNewFeedLink) break;
+    }
+
+    if (hasNewFeedLink) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        const feeds = discoverFeeds();
+        notifyServiceWorker(feeds);
+      }, 500);
     }
   });
 

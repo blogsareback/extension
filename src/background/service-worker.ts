@@ -433,10 +433,12 @@ browser.runtime.onMessage.addListener(
       if (message.type === 'SYNC_ALL_BLOGS') {
         const request = message as SyncAllBlogsRequest;
         handleSyncAllBlogs(request).then(async () => {
-          // Link userId for telemetry if provided
+          // Link userId for telemetry if provided (only send heartbeat on first link or user change)
           if (request.userId) {
-            await setLinkedUserId(request.userId);
-            sendTelemetryHeartbeat({ reason: 'user-link' }).catch(console.warn);
+            const wasNewLink = await setLinkedUserId(request.userId);
+            if (wasNewLink) {
+              sendTelemetryHeartbeat({ reason: 'user-link' }).catch(console.warn);
+            }
           }
           sendResponse({ success: true });
         });
@@ -1216,10 +1218,19 @@ setupPeriodicCheckAlarm().catch((error) => {
   console.log('[Service Worker] Failed to setup periodic check alarm:', error);
 });
 
-// Set up daily telemetry heartbeat alarm
-browser.alarms.create(TELEMETRY_ALARM, {
-  periodInMinutes: TELEMETRY_INTERVAL_MINUTES,
-  delayInMinutes: 5,
+// Set up daily telemetry heartbeat alarm with jitter to avoid thundering herd.
+// Only create if it doesn't already exist so we preserve the original jitter
+// across service worker restarts instead of resetting the schedule each time.
+browser.alarms.get(TELEMETRY_ALARM).then((existing) => {
+  if (!existing) {
+    // Random jitter: 5–125 minutes (spread first heartbeat over ~2 hours)
+    const jitterMinutes = 5 + Math.floor(Math.random() * 120);
+    browser.alarms.create(TELEMETRY_ALARM, {
+      periodInMinutes: TELEMETRY_INTERVAL_MINUTES,
+      delayInMinutes: jitterMinutes,
+    });
+    console.log(`[Service Worker] Telemetry alarm created with ${jitterMinutes}m initial delay`);
+  }
 });
 
 browser.alarms.onAlarm.addListener((alarm) => {

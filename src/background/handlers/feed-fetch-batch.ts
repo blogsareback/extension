@@ -28,7 +28,22 @@ const DEFAULT_BATCH_CONCURRENCY = 10;
 export async function fetchFeedsBatch(
   request: FetchFeedsBatchRequest
 ): Promise<FetchFeedsBatchResponse> {
-  const { feeds, requestId, maxConcurrent } = request;
+  const { feeds: rawFeeds, requestId, maxConcurrent } = request;
+
+  // Deduplicate feeds by URL to avoid fetching the same feed multiple times
+  const seen = new Map<string, BatchFeedItem>();
+  for (const feed of rawFeeds) {
+    if (!seen.has(feed.feedUrl)) {
+      seen.set(feed.feedUrl, feed);
+    }
+  }
+  const feeds = Array.from(seen.values());
+
+  if (feeds.length < rawFeeds.length) {
+    console.log(
+      `[Feed Batch] Deduplicated ${rawFeeds.length} → ${feeds.length} feeds`
+    );
+  }
 
   console.log(
     `[Feed Batch] Starting batch fetch of ${feeds.length} feeds (requestId: ${requestId})`

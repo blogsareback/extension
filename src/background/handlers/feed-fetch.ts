@@ -11,7 +11,6 @@ import { FETCH_TIMEOUT, USER_AGENT, MAX_CONTENT_SIZE } from '../utils/constants'
 import {
   getFeedCache,
   setFeedCache,
-  getConditionalHeaders,
 } from '../storage/feed-cache';
 import type { FeedResponse, FetchFeedOptions } from '../../utils/types';
 
@@ -42,8 +41,8 @@ export async function fetchFeed(
   }
 
   try {
-    // 2. Check for fresh cached content (prefetch optimization)
-    // If we have valid cached content, return it immediately without network request
+    // 2. Check for fresh cached content (single cache lookup)
+    // getFeedCache returns null for expired entries, so a non-null result means fresh.
     if (!skipCache) {
       const cached = await getFeedCache(feedUrl);
       if (cached) {
@@ -53,43 +52,18 @@ export async function fetchFeed(
           requestId,
           success: true,
           data: cached.content,
-          status: 200, // Indicate this is valid content (not 304 since no request was made)
+          status: 200,
         };
       }
     }
 
-    // 3. Build headers with conditional GET support
+    // 3. Build headers for fresh fetch (no conditional GET headers available —
+    // getFeedCache deletes expired entries, so stale headers are already gone)
     const headers: Record<string, string> = {
       'User-Agent': USER_AGENT,
     };
 
-    // Check for cached conditional headers (unless skipCache)
-    // Note: We already checked cache above, but it may have expired since then
-    // So we still check for conditional headers for the 304 flow
-    let cachedContent: string | null = null;
-    if (!skipCache) {
-      const conditionalHeaders = await getConditionalHeaders(feedUrl);
-      if (conditionalHeaders) {
-        if (conditionalHeaders.etag) {
-          headers['If-None-Match'] = conditionalHeaders.etag;
-        }
-        if (conditionalHeaders.lastModified) {
-          headers['If-Modified-Since'] = conditionalHeaders.lastModified;
-        }
-
-        // Also get the cached content in case we get 304
-        const cached = await getFeedCache(feedUrl);
-        if (cached) {
-          cachedContent = cached.content;
-        }
-
-        console.log('[Service Worker] Fetching feed with conditional headers:', feedUrl);
-      } else {
-        console.log('[Service Worker] Fetching feed (no cache):', feedUrl);
-      }
-    } else {
-      console.log('[Service Worker] Fetching feed (skip cache):', feedUrl);
-    }
+    console.log(`[Service Worker] Fetching feed (${skipCache ? 'skip cache' : 'no cache'}):`, feedUrl);
 
     // 4. Fetch with retry logic
     const response = await fetchWithRetry(
@@ -101,19 +75,7 @@ export async function fetchFeed(
       timeout
     );
 
-    // 5. Handle 304 Not Modified - return cached content
-    if (response.status === 304 && cachedContent) {
-      console.log('[Service Worker] Feed not modified (304), using cache:', feedUrl);
-      return {
-        type: 'FEED_RESPONSE',
-        requestId,
-        success: true,
-        data: cachedContent,
-        status: 304,
-      };
-    }
-
-    // 6. Check final URL after redirects
+    // 5. Check final URL after redirects
     if (!isValidFeedUrl(response.url)) {
       console.error(
         '[Service Worker] Redirect to blocked URL:',

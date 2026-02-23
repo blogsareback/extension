@@ -37,12 +37,33 @@ interface SnapshotResponse {
   community: SnapshotSection;
 }
 
+// In-flight request deduplication: if a check is already running, new callers
+// piggyback on the same promise instead of firing a second API request.
+let inflightCheck: Promise<void> | null = null;
+
 /**
  * Check both catalogs in a single request via /api/catalog/snapshot.
  * One URL, no query params, fully CDN-cacheable.
  * Filters locally by lastVisit, updates both states and badge.
+ *
+ * Concurrent calls are coalesced: only one network request runs at a time.
  */
 export async function checkCatalogSnapshotFromAPI(options?: {
+  skipCache?: boolean;
+  silent?: boolean;
+}): Promise<void> {
+  if (inflightCheck) {
+    console.log('[Service Worker] Catalog check already in flight, coalescing');
+    return inflightCheck;
+  }
+
+  inflightCheck = doCheckCatalogSnapshot(options).finally(() => {
+    inflightCheck = null;
+  });
+  return inflightCheck;
+}
+
+async function doCheckCatalogSnapshot(options?: {
   skipCache?: boolean;
   silent?: boolean;
 }): Promise<void> {

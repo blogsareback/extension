@@ -80,14 +80,16 @@ export async function getLinkedUserId(): Promise<string | null> {
 }
 
 /**
- * Link a Supabase user ID to this installation
+ * Link a Supabase user ID to this installation.
+ * Returns true if the link was new or changed, false if already linked to this user.
  */
-export async function setLinkedUserId(userId: string): Promise<void> {
+export async function setLinkedUserId(userId: string): Promise<boolean> {
   const existing = await getLinkedUserId();
-  if (existing === userId) return; // Already linked to this user
+  if (existing === userId) return false; // Already linked to this user
 
   await browser.storage.local.set({ [STORAGE_KEY_LINKED_USER_ID]: userId });
   console.log('[Service Worker] Linked user ID:', userId);
+  return true;
 }
 
 /**

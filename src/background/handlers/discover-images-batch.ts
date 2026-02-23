@@ -26,7 +26,16 @@ const DEFAULT_IMAGE_BATCH_CONCURRENCY = 5;
 export async function discoverImagesBatch(
   request: DiscoverImagesBatchRequest
 ): Promise<DiscoverImagesBatchResponse> {
-  const { blogUrls, requestId, maxConcurrent } = request;
+  const { blogUrls: rawBlogUrls, requestId, maxConcurrent } = request;
+
+  // Deduplicate URLs to avoid discovering images for the same blog multiple times
+  const blogUrls = [...new Set(rawBlogUrls)];
+
+  if (blogUrls.length < rawBlogUrls.length) {
+    console.log(
+      `[Image Batch] Deduplicated ${rawBlogUrls.length} → ${blogUrls.length} URLs`
+    );
+  }
 
   console.log(
     `[Image Batch] Starting batch discovery for ${blogUrls.length} URLs (requestId: ${requestId})`

@@ -43,6 +43,10 @@ import type {
  */
 const STORAGE_KEY_FEED_LAST_MODIFIED = 'feedLastModified';
 
+// In-flight request deduplication: if a check is already running, new callers
+// piggyback on the same promise instead of firing duplicate feed fetches.
+let inflightCustomCheck: Promise<void> | null = null;
+
 /**
  * Check if a feed has been modified using a HEAD request
  * This is much faster than fetching the full feed
@@ -167,16 +171,20 @@ async function fetchNewestPostDate(
       return null;
     }
 
-    // Try HEAD request first to check if feed has been modified
+    // Try HEAD request first to check if feed has been modified,
+    // but only when we have a stored Last-Modified value to compare against.
+    // Without a baseline, HEAD always returns "modified: true" — a wasted request.
     const storedModified = await getStoredLastModified();
     const lastKnownModified = storedModified[feedUrl] || null;
 
-    const headCheck = await checkFeedModifiedViaHead(feedUrl, lastKnownModified);
+    if (lastKnownModified) {
+      const headCheck = await checkFeedModifiedViaHead(feedUrl, lastKnownModified);
 
-    if (!headCheck.modified && lastKnownPostDate !== null) {
-      // Feed not modified according to HEAD - return existing date
-      console.log(`[Service Worker] Feed not modified (HEAD), skipping full fetch: ${feedUrl}`);
-      return lastKnownPostDate;
+      if (!headCheck.modified && lastKnownPostDate !== null) {
+        // Feed not modified according to HEAD - return existing date
+        console.log(`[Service Worker] Feed not modified (HEAD), skipping full fetch: ${feedUrl}`);
+        return lastKnownPostDate;
+      }
     }
 
     // Fetch full feed
@@ -206,9 +214,6 @@ async function fetchNewestPostDate(
         if (!isNaN(serverTime)) {
           await storeLastModified(feedUrl, serverTime);
         }
-      } else if (headCheck.newLastModified) {
-        // Use the value from HEAD check
-        await storeLastModified(feedUrl, headCheck.newLastModified);
       }
 
       const xml = await response.text();
@@ -265,10 +270,24 @@ async function fetchNewestPostDate(
 }
 
 /**
- * Check custom blogs for updates by fetching each feed and comparing post dates
- * Respects concurrency and throttling settings
+ * Check custom blogs for updates by fetching each feed and comparing post dates.
+ * Respects concurrency and throttling settings.
+ *
+ * Concurrent calls are coalesced: only one check runs at a time.
  */
 export async function checkCustomBlogUpdates(options?: { silent?: boolean }): Promise<void> {
+  if (inflightCustomCheck) {
+    console.log('[Service Worker] Custom blog check already in flight, coalescing');
+    return inflightCustomCheck;
+  }
+
+  inflightCustomCheck = doCheckCustomBlogUpdates(options).finally(() => {
+    inflightCustomCheck = null;
+  });
+  return inflightCustomCheck;
+}
+
+async function doCheckCustomBlogUpdates(options?: { silent?: boolean }): Promise<void> {
   const { silent = false } = options ?? {};
 
   try {

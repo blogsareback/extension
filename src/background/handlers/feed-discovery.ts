@@ -5,7 +5,8 @@
 import { isValidFeedUrl } from '../../utils/security';
 import { toURL } from '../../utils/urls';
 import { fetchWithRetry } from '../utils/fetch';
-import { FETCH_TIMEOUT, USER_AGENT, COMMON_FEED_PATHS } from '../utils/constants';
+import { FETCH_TIMEOUT, USER_AGENT } from '../utils/constants';
+import { probeCommonPaths } from './feed-probe';
 import type { DiscoverFeedsResponse, DiscoveredFeed } from '../../utils/types';
 
 /**
@@ -68,6 +69,21 @@ export function parseFeedLinksFromHTML(html: string, baseUrl: string): Discovere
 }
 
 /**
+ * Check if content looks like a valid RSS/Atom feed
+ */
+export function isFeedContent(text: string): boolean {
+  const lowerContent = text.toLowerCase();
+  return (
+    (lowerContent.includes('<rss') ||
+      lowerContent.includes('<feed') ||
+      lowerContent.includes('<rdf:rdf')) &&
+    (lowerContent.includes('</rss>') ||
+      lowerContent.includes('</feed>') ||
+      lowerContent.includes('</rdf:rdf>'))
+  );
+}
+
+/**
  * Check if a URL is a valid feed by trying to fetch and verify XML content
  */
 export async function isValidFeed(url: string): Promise<boolean> {
@@ -91,62 +107,24 @@ export async function isValidFeed(url: string): Promise<boolean> {
     }
 
     const text = await response.text();
-    const lowerContent = text.toLowerCase();
-
-    // Check for feed-like XML
-    return (
-      (lowerContent.includes('<rss') ||
-        lowerContent.includes('<feed') ||
-        lowerContent.includes('<rdf:rdf')) &&
-      (lowerContent.includes('</rss>') ||
-        lowerContent.includes('</feed>') ||
-        lowerContent.includes('</rdf:rdf>'))
-    );
+    return isFeedContent(text);
   } catch {
     return false;
   }
 }
 
 /**
- * Try common feed paths for a given domain
+ * Try common feed paths for a given domain.
+ * Delegates to probeCommonPaths (feed-probe.ts) which has a 24-hour cache,
+ * so repeated discoveries for the same domain don't re-probe.
  */
 export async function checkCommonPaths(baseUrl: string): Promise<DiscoveredFeed[]> {
-  const feeds: DiscoveredFeed[] = [];
-
-  try {
-    const url = new URL(baseUrl);
-    const origin = url.origin;
-
-    // Try common paths in parallel (limit concurrency)
-    const batchSize = 3;
-    for (let i = 0; i < COMMON_FEED_PATHS.length; i += batchSize) {
-      const batch = COMMON_FEED_PATHS.slice(i, i + batchSize);
-
-      const results = await Promise.allSettled(
-        batch.map(async (path) => {
-          const feedUrl = origin + path;
-          const isValid = await isValidFeed(feedUrl);
-          return isValid ? feedUrl : null;
-        })
-      );
-
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-          feeds.push({
-            url: result.value,
-            type: 'unknown',
-          });
-        }
-      }
-
-      // If we found feeds, stop checking
-      if (feeds.length > 0) break;
-    }
-  } catch {
-    // Invalid base URL
-  }
-
-  return feeds;
+  const feedLinks = await probeCommonPaths(baseUrl);
+  return feedLinks.map((link) => ({
+    url: link.href,
+    type: 'unknown' as const,
+    title: link.title,
+  }));
 }
 
 /**
@@ -181,20 +159,7 @@ export async function discoverFeedsFromUrl(
 
     console.log('[Service Worker] Discovering feeds from:', normalizedUrl, '(original:', blogUrl, ')');
 
-    // First, check if the URL itself is a feed
-    if (await isValidFeed(normalizedUrl)) {
-      return {
-        type: 'DISCOVER_FEEDS_RESPONSE',
-        requestId,
-        success: true,
-        feeds: [{
-          url: normalizedUrl,
-          type: 'unknown',
-        }],
-      };
-    }
-
-    // Fetch the page HTML
+    // Fetch the URL once — then check if it's a feed or an HTML page
     const response = await fetchWithRetry(
       normalizedUrl,
       {
@@ -218,6 +183,19 @@ export async function discoverFeedsFromUrl(
     }
 
     const html = await response.text();
+
+    // Check if the URL itself is a feed (avoids a second fetch)
+    if (isFeedContent(html)) {
+      return {
+        type: 'DISCOVER_FEEDS_RESPONSE',
+        requestId,
+        success: true,
+        feeds: [{
+          url: response.url,
+          type: 'unknown',
+        }],
+      };
+    }
 
     // Parse HTML for feed links
     const feedsFromHTML = parseFeedLinksFromHTML(html, response.url);
