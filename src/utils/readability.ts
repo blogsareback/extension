@@ -40,6 +40,141 @@ export function extractMetadata(
 }
 
 /**
+ * Extract published date from HTML meta tags and structured data
+ * Checks common sources in priority order:
+ * 1. article:published_time (Open Graph)
+ * 2. datePublished in JSON-LD (schema.org)
+ * 3. date / DC.date.issued / DC.date.created meta tags
+ * 4. parsely-pub-date / sailthru.date meta tags
+ * 5. <time> element with itemprop="datePublished"
+ *
+ * Returns a ms timestamp or null if no valid date found
+ */
+export function extractPublishedDate(document: Document): number | null {
+  // 1. Open Graph article:published_time
+  const ogDate = extractMetadata(document, 'article:published_time');
+  if (ogDate) {
+    const ts = Date.parse(ogDate);
+    if (!isNaN(ts)) return ts;
+  }
+
+  // 2. JSON-LD schema.org datePublished
+  const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+  for (const script of jsonLdScripts) {
+    try {
+      const data = JSON.parse(script.textContent || '');
+      const dateStr = extractDateFromJsonLd(data);
+      if (dateStr) {
+        const ts = Date.parse(dateStr);
+        if (!isNaN(ts)) return ts;
+      }
+    } catch {
+      // Invalid JSON, skip
+    }
+  }
+
+  // 3. Common meta tags (by name attribute)
+  const metaNameCandidates = [
+    'date',
+    'DC.date.issued',
+    'DC.date.created',
+    'DC.date',
+    'dcterms.date',
+    'parsely-pub-date',
+    'sailthru.date',
+    'publish-date',
+    'pub_date',
+  ];
+  for (const name of metaNameCandidates) {
+    const value = extractMetadata(document, name, 'name');
+    if (value) {
+      const ts = Date.parse(value);
+      if (!isNaN(ts)) return ts;
+    }
+  }
+
+  // 4. <time> element with itemprop="datePublished"
+  const timeEl = document.querySelector('time[itemprop="datePublished"]');
+  if (timeEl) {
+    const datetime = timeEl.getAttribute('datetime') || timeEl.textContent;
+    if (datetime) {
+      const ts = Date.parse(datetime);
+      if (!isNaN(ts)) return ts;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Recursively search JSON-LD data for datePublished
+ * Handles both single objects and @graph arrays
+ */
+function extractDateFromJsonLd(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const result = extractDateFromJsonLd(item);
+      if (result) return result;
+    }
+    return null;
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  if (typeof obj.datePublished === 'string') return obj.datePublished;
+
+  // Check @graph array (common in WordPress, etc.)
+  if (Array.isArray(obj['@graph'])) {
+    return extractDateFromJsonLd(obj['@graph']);
+  }
+
+  return null;
+}
+
+/**
+ * Extract the best description from meta tags
+ * Checks og:description first, then meta name="description"
+ */
+export function extractDescription(document: Document): string | null {
+  const ogDesc = extractMetadata(document, 'og:description');
+  if (ogDesc) return ogDesc.trim();
+
+  const metaDesc = extractMetadata(document, 'description', 'name');
+  if (metaDesc) return metaDesc.trim();
+
+  const twitterDesc = extractMetadata(document, 'twitter:description', 'name');
+  if (twitterDesc) return twitterDesc.trim();
+
+  return null;
+}
+
+/**
+ * Generate a clean text excerpt from HTML content
+ * Strips tags first, then truncates at a word boundary
+ */
+export function generateExcerpt(html: string, maxLength: number = 200): string {
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (text.length <= maxLength) return text;
+
+  // Truncate at last word boundary before maxLength
+  const truncated = text.substring(0, maxLength);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > maxLength * 0.5 ? truncated.substring(0, lastSpace) : truncated) + '…';
+}
+
+/**
  * Get the best image URL from meta tags
  * Checks og:image first, then twitter:image as fallback
  * Resolves relative URLs to absolute URLs using the document's base URL
@@ -282,13 +417,22 @@ export function parseReadableHtml(
   // Extract image metadata (with absolute URL resolution)
   const image = extractImageUrl(document, url);
 
+  // Extract published date from meta tags / structured data
+  const publishedDate = extractPublishedDate(document);
+
+  // Extract description: prefer meta tags, fall back to content excerpt
+  const metaDescription = extractDescription(document);
+
   if (article && article.content) {
     // Successfully parsed article - clean the HTML and resolve relative URLs
     const cleanedHtml = cleanHtmlAttributes(article.content, url);
+    const description = metaDescription || generateExcerpt(cleanedHtml);
     return {
       title: article.title,
       htmlContent: cleanedHtml,
       image,
+      publishedDate,
+      description,
     };
   }
 

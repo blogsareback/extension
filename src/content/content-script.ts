@@ -38,6 +38,12 @@ import type {
   ReextractSavedPostResponse,
   GetAllSavedPostGuidsRequest,
   AllSavedPostGuidsResponse,
+  GetSavedPostsIndexRequest,
+  SavedPostsIndexResponse,
+  GetSavedPostContentRequest,
+  SavedPostContentResponse,
+  SaveByUrlRequest,
+  SaveByUrlResponse,
 } from '../utils/types';
 // Version injected at build time from package.json (see vite.config.ts)
 const EXTENSION_VERSION = __EXTENSION_VERSION__;
@@ -659,6 +665,76 @@ window.addEventListener('message', (event: MessageEvent) => {
             guids: [],
             error: 'Extension context invalid. Please reload the page.',
           } as AllSavedPostGuidsResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle get saved posts index from web app (v2.3.0+)
+  if (message.type === 'GET_SAVED_POSTS_INDEX') {
+    const request = message as GetSavedPostsIndexRequest;
+
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as SavedPostsIndexResponse;
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        window.postMessage(
+          {
+            type: 'SAVED_POSTS_INDEX_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            posts: [],
+            error: 'Extension context invalid. Please reload the page.',
+          } as SavedPostsIndexResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle get saved post content from web app (v2.3.0+)
+  if (message.type === 'GET_SAVED_POST_CONTENT') {
+    const request = message as GetSavedPostContentRequest;
+
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as SavedPostContentResponse;
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        window.postMessage(
+          {
+            type: 'SAVED_POST_CONTENT_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            error: 'Extension context invalid. Please reload the page.',
+          } as SavedPostContentResponse,
+          window.location.origin
+        );
+      });
+  }
+
+  // Handle save by URL from web app (v2.3.0+)
+  if (message.type === 'SAVE_BY_URL') {
+    const request = message as SaveByUrlRequest;
+
+    browser.runtime
+      .sendMessage(request)
+      .then((rawResponse) => {
+        const response = rawResponse as SaveByUrlResponse;
+        window.postMessage(response, window.location.origin);
+      })
+      .catch((error: Error) => {
+        window.postMessage(
+          {
+            type: 'SAVE_BY_URL_RESPONSE',
+            requestId: request.requestId,
+            success: false,
+            error: 'Extension context invalid. Please reload the page.',
+          } as SaveByUrlResponse,
           window.location.origin
         );
       });

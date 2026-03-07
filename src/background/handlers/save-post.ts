@@ -34,6 +34,10 @@ import type {
   SavedPostResponse,
   ExportSavedPostsResponse,
   ImportSavedPostsResponse,
+  SaveByUrlResponse,
+  SavedPostsIndexResponse,
+  SavedPostContentResponse,
+  SavedPostMeta,
 } from '../../utils/types';
 
 /**
@@ -479,6 +483,188 @@ export async function handleImportSavedPosts(
   } catch (error) {
     return {
       type: 'IMPORT_SAVED_POSTS_RESPONSE',
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Handle SAVE_BY_URL request
+ * Saves an arbitrary URL as a post by fetching + extracting via Readability
+ */
+export async function handleSaveByUrl(
+  url: string,
+  requestId: string
+): Promise<SaveByUrlResponse> {
+  try {
+    // Generate guid from URL (same as hashGuid in web app)
+    const guid = guidToId(url);
+    const id = guidToId(guid);
+
+    // Check if already saved
+    const alreadySaved = await isPostSaved(guid);
+    if (alreadySaved) {
+      return {
+        type: 'SAVE_BY_URL_RESPONSE',
+        requestId,
+        success: true,
+        post: { guid, title: 'Already saved', domain: new URL(url).hostname },
+      };
+    }
+
+    // Fetch page and extract via Readability
+    if (!isValidFeedUrl(url)) {
+      return {
+        type: 'SAVE_BY_URL_RESPONSE',
+        requestId,
+        success: false,
+        error: 'URL blocked by security policy',
+      };
+    }
+
+    const response = await fetchWithRetry(
+      url,
+      {
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      },
+      FETCH_TIMEOUT
+    );
+
+    if (!response.ok) {
+      return {
+        type: 'SAVE_BY_URL_RESPONSE',
+        requestId,
+        success: false,
+        error: `Failed to fetch page: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const html = await response.text();
+    if (html.length > MAX_CONTENT_SIZE) {
+      return {
+        type: 'SAVE_BY_URL_RESPONSE',
+        requestId,
+        success: false,
+        error: 'Page content too large',
+      };
+    }
+
+    const readableResult = parseReadableHtml(html, url);
+    if (!readableResult || !readableResult.htmlContent) {
+      return {
+        type: 'SAVE_BY_URL_RESPONSE',
+        requestId,
+        success: false,
+        error: 'Could not extract content from this URL',
+      };
+    }
+
+    const domain = new URL(url).hostname;
+    const contentSizeBytes = new Blob([readableResult.htmlContent]).size;
+    const title = readableResult.title || domain;
+
+    const savedPost: SavedPost = {
+      id,
+      guid,
+      link: url,
+      title,
+      pubDate: readableResult.publishedDate ?? null,
+      description: readableResult.description || undefined,
+      image: readableResult.image || undefined,
+      htmlContent: readableResult.htmlContent,
+      contentSource: 'extracted',
+      savedAt: Date.now(),
+      contentSizeBytes,
+      domain,
+      saveSource: 'url',
+    };
+
+    await savePost(savedPost);
+
+    console.log(
+      `[Save Post] Saved URL "${title}" from ${domain} (${Math.round(contentSizeBytes / 1024)}KB)`
+    );
+
+    return {
+      type: 'SAVE_BY_URL_RESPONSE',
+      requestId,
+      success: true,
+      post: { guid, title, domain },
+    };
+  } catch (error) {
+    console.error('[Save Post] Error saving by URL:', error);
+    return {
+      type: 'SAVE_BY_URL_RESPONSE',
+      requestId,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Handle GET_SAVED_POSTS_INDEX request
+ * Returns all saved posts metadata without htmlContent (lightweight for listing)
+ */
+export async function handleGetSavedPostsIndex(
+  requestId: string
+): Promise<SavedPostsIndexResponse> {
+  try {
+    const posts = await getAllPosts();
+    const meta: SavedPostMeta[] = posts.map(
+      ({ htmlContent: _, ...rest }) => rest
+    );
+    return {
+      type: 'SAVED_POSTS_INDEX_RESPONSE',
+      requestId,
+      success: true,
+      posts: meta,
+    };
+  } catch (error) {
+    return {
+      type: 'SAVED_POSTS_INDEX_RESPONSE',
+      requestId,
+      success: false,
+      posts: [],
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Handle GET_SAVED_POST_CONTENT request
+ * Returns the htmlContent for a single saved post by guid
+ */
+export async function handleGetSavedPostContent(
+  guid: string,
+  requestId: string
+): Promise<SavedPostContentResponse> {
+  try {
+    const id = guidToId(guid);
+    const post = await getPost(id);
+    if (!post) {
+      return {
+        type: 'SAVED_POST_CONTENT_RESPONSE',
+        requestId,
+        success: false,
+        error: 'Post not found',
+      };
+    }
+    return {
+      type: 'SAVED_POST_CONTENT_RESPONSE',
+      requestId,
+      success: true,
+      htmlContent: post.htmlContent,
+    };
+  } catch (error) {
+    return {
+      type: 'SAVED_POST_CONTENT_RESPONSE',
+      requestId,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     };

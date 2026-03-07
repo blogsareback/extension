@@ -148,11 +148,11 @@ export default function SavedPostReaderRoute() {
         <h1 className="text-2xl font-semibold leading-tight">{post.title}</h1>
         <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
           {post.author && <span>{post.author}</span>}
-          {post.author && post.blogTitle && (
+          {post.author && (post.blogTitle || post.domain) && (
             <span className="text-muted-foreground/40">&middot;</span>
           )}
-          {post.blogTitle && <span>{post.blogTitle}</span>}
-          {(post.author || post.blogTitle) && post.pubDate && (
+          {(post.blogTitle || post.domain) && <span>{post.blogTitle || post.domain}</span>}
+          {(post.author || post.blogTitle || post.domain) && post.pubDate && (
             <span className="text-muted-foreground/40">&middot;</span>
           )}
           {post.pubDate && <span>{formatDate(post.pubDate)}</span>}

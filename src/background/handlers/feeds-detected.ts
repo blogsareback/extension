@@ -13,12 +13,14 @@ import {
 
 // Context menu IDs
 const SETTINGS_MENU_ID = 'blogs-are-back-settings';
+const SAVE_PAGE_MENU_ID = 'blogs-are-back-save-page';
 const FEED_PARENT_MENU_ID = 'blogs-are-back-parent';
 const FEED_MENU_PREFIX = 'subscribe-feed-';
 import { normalizeUrl } from '../utils/fetch';
 import { getSettings } from '../storage/settings';
 import { incrementEngagement } from '../storage/telemetry';
 import { probeCommonPaths } from './feed-probe';
+import { handleSaveByUrl } from './save-post';
 import type { FeedLink, FeedsDetectedMessage, QueuedSubscription, ProbeCacheEntry } from '../../utils/types';
 
 /**
@@ -93,7 +95,21 @@ export async function createOptionsContextMenu(): Promise<void> {
       title: 'Settings',
       contexts: ['action'], // Appears when right-clicking the extension icon
     });
-    console.log('[Service Worker] Created Settings context menu');
+
+    // "Save page offline" - appears on all pages
+    try {
+      await browser.contextMenus.remove(SAVE_PAGE_MENU_ID);
+    } catch {
+      // Menu doesn't exist yet, that's fine
+    }
+
+    browser.contextMenus.create({
+      id: SAVE_PAGE_MENU_ID,
+      title: 'Save page offline',
+      contexts: ['page', 'link'],
+    });
+
+    console.log('[Service Worker] Created Settings and Save Page context menus');
   } catch (error) {
     console.log('[Service Worker] Settings context menu failed:', error);
   }
@@ -326,6 +342,41 @@ export async function handleContextMenuClick(
   if (menuId === SETTINGS_MENU_ID) {
     const settingsUrl = browser.runtime.getURL('src/main/main.html#/settings');
     await browser.tabs.create({ url: settingsUrl });
+    return;
+  }
+
+  // Handle "Save page offline" menu click
+  if (menuId === SAVE_PAGE_MENU_ID) {
+    const pageUrl = info.linkUrl || info.pageUrl || tab?.url;
+    if (!pageUrl) {
+      console.error('[Service Worker] No URL available to save');
+      return;
+    }
+
+    console.log('[Service Worker] Context menu: saving page offline:', pageUrl);
+
+    const requestId = `ctx-save-${Date.now()}`;
+    const result = await handleSaveByUrl(pageUrl, requestId);
+
+    const settings = await getSettings();
+    if (settings.notificationsEnabled) {
+      if (result.success) {
+        const title = result.post?.title || 'Page';
+        browser.notifications.create({
+          type: 'basic',
+          iconUrl: browser.runtime.getURL('icons/icon48.png'),
+          title: 'Page Saved',
+          message: `"${title}" saved for offline reading`,
+        });
+      } else {
+        browser.notifications.create({
+          type: 'basic',
+          iconUrl: browser.runtime.getURL('icons/icon48.png'),
+          title: 'Save Failed',
+          message: result.error || 'Could not save this page',
+        });
+      }
+    }
     return;
   }
 

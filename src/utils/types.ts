@@ -70,6 +70,8 @@ export interface ReadableHtmlData {
   title: string;
   htmlContent: string;
   image: string | null;
+  publishedDate?: number | null; // ms timestamp extracted from meta tags / JSON-LD
+  description?: string | null; // meta description or excerpt from content
 }
 
 // Message from extension to web app - Readable HTML response
@@ -381,7 +383,13 @@ export type ExtensionMessage =
   | ExportSavedPostsRequest
   | ExportSavedPostsResponse
   | ImportSavedPostsRequest
-  | ImportSavedPostsResponse;
+  | ImportSavedPostsResponse
+  | SaveByUrlRequest
+  | SaveByUrlResponse
+  | GetSavedPostsIndexRequest
+  | SavedPostsIndexResponse
+  | GetSavedPostContentRequest
+  | SavedPostContentResponse;
 
 // Statistics tracking
 
@@ -1288,6 +1296,78 @@ export interface ImportSavedPostsResponse {
   imported?: number;
   skipped?: number;
   errors?: number;
+  error?: string;
+}
+
+// ============================================
+// Save by URL Messages
+// ============================================
+
+/** Message from web app to extension - Save an arbitrary URL as a post */
+export interface SaveByUrlRequest {
+  type: 'SAVE_BY_URL';
+  requestId: string;
+  url: string;
+}
+
+/** Message from extension to web app - Save by URL response */
+export interface SaveByUrlResponse {
+  type: 'SAVE_BY_URL_RESPONSE';
+  requestId: string;
+  success: boolean;
+  post?: { guid: string; title: string; domain: string };
+  error?: string;
+}
+
+/** Saved post metadata (without htmlContent) for lightweight listing */
+export interface SavedPostMeta {
+  id: string;
+  guid: string;
+  link: string;
+  title: string;
+  author?: string;
+  pubDate: number | null;
+  description?: string;
+  image?: string;
+  blogId?: string;
+  blogTitle?: string;
+  blogIcon?: string;
+  blogFeedUrl?: string;
+  contentSource: 'rss' | 'extracted';
+  savedAt: number;
+  contentSizeBytes: number;
+  domain?: string;
+  saveSource?: 'blog-post' | 'url';
+}
+
+/** Message from web app to extension - Get saved posts index (metadata only) */
+export interface GetSavedPostsIndexRequest {
+  type: 'GET_SAVED_POSTS_INDEX';
+  requestId: string;
+}
+
+/** Message from extension to web app - Saved posts index response */
+export interface SavedPostsIndexResponse {
+  type: 'SAVED_POSTS_INDEX_RESPONSE';
+  requestId: string;
+  success: boolean;
+  posts: SavedPostMeta[];
+  error?: string;
+}
+
+/** Message from web app to extension - Get single saved post content */
+export interface GetSavedPostContentRequest {
+  type: 'GET_SAVED_POST_CONTENT';
+  requestId: string;
+  guid: string;
+}
+
+/** Message from extension to web app - Saved post content response */
+export interface SavedPostContentResponse {
+  type: 'SAVED_POST_CONTENT_RESPONSE';
+  requestId: string;
+  success: boolean;
+  htmlContent?: string;
   error?: string;
 }
 

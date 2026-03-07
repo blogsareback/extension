@@ -54,6 +54,9 @@ import {
   handleGetSavedPost,
   handleExportSavedPosts,
   handleImportSavedPosts,
+  handleSaveByUrl,
+  handleGetSavedPostsIndex,
+  handleGetSavedPostContent,
 } from './handlers/save-post';
 import {
   forceCheckDirectoryUpdates,
@@ -146,6 +149,9 @@ import type {
   ExportSavedPostsResponse,
   ImportSavedPostsResponse,
   ImportSavedPostsRequest,
+  SaveByUrlRequest,
+  GetSavedPostsIndexRequest,
+  GetSavedPostContentRequest,
 } from '../utils/types';
 
 import { DASHBOARD_BASE_URL } from './utils/constants';
@@ -1073,6 +1079,35 @@ browser.runtime.onMessage.addListener(
         handleImportSavedPosts(request.posts).then((response) => {
           sendResponse(response);
         });
+        return true; // Async response
+      }
+
+      // Handle SAVE_BY_URL from web app (via content script)
+      if (message.type === 'SAVE_BY_URL') {
+        const request = message as SaveByUrlRequest;
+        handleSaveByUrl(request.url, request.requestId).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle GET_SAVED_POSTS_INDEX from web app (via content script)
+      if (message.type === 'GET_SAVED_POSTS_INDEX') {
+        const request = message as GetSavedPostsIndexRequest;
+        handleGetSavedPostsIndex(request.requestId).then((response) => {
+          sendResponse(response);
+        });
+        return true; // Async response
+      }
+
+      // Handle GET_SAVED_POST_CONTENT from web app (via content script)
+      if (message.type === 'GET_SAVED_POST_CONTENT') {
+        const request = message as GetSavedPostContentRequest;
+        handleGetSavedPostContent(request.guid, request.requestId).then(
+          (response) => {
+            sendResponse(response);
+          }
+        );
         return true; // Async response
       }
 

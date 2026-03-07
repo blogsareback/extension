@@ -21,12 +21,17 @@ import { useRef, useState } from 'react';
 
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp);
-  return date.toLocaleDateString(undefined, {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  });
+  };
+  if (date.getFullYear() !== now.getFullYear()) {
+    options.year = 'numeric';
+  }
+  return date.toLocaleDateString(undefined, options);
 }
 
 function formatSize(bytes: number): string {
@@ -150,8 +155,8 @@ export default function SavedPostsRoute() {
                     </Badge>
                   </ItemTitle>
                   <ItemDescription className="space-y-0.5">
-                    {post.blogTitle && (
-                      <span className="block text-xs">{post.blogTitle}</span>
+                    {(post.blogTitle || post.domain) && (
+                      <span className="block text-xs">{post.blogTitle || post.domain}</span>
                     )}
                     <span className="block text-xs text-muted-foreground/60">
                       {post.pubDate

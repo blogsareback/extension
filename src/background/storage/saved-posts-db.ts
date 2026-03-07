@@ -30,6 +30,8 @@ export interface SavedPost {
   contentSource: 'rss' | 'extracted';
   savedAt: number; // ms timestamp
   contentSizeBytes: number;
+  domain?: string; // hostname from URL (e.g. 'nytimes.com')
+  saveSource?: 'blog-post' | 'url'; // distinguish blog saves from URL saves
 }
 
 /**
