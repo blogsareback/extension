@@ -1385,6 +1385,8 @@ export interface EngagementCounters {
   notificationClicks: number;
   popupOpens: number;
   modeChanges: number;
+  postsSaved: number;
+  postsSavedByUrl: number;
 }
 
 /**

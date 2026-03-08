@@ -33,6 +33,8 @@ const DEFAULT_ENGAGEMENT: EngagementCounters = {
   notificationClicks: 0,
   popupOpens: 0,
   modeChanges: 0,
+  postsSaved: 0,
+  postsSavedByUrl: 0,
 };
 
 /**

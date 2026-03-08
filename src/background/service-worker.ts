@@ -993,6 +993,9 @@ browser.runtime.onMessage.addListener(
         const request = message as SavePostOfflineRequest;
         handleSavePostOffline(request.post, request.requestId).then(
           (response) => {
+            if (response.success) {
+              incrementEngagement('postsSaved').catch(console.warn);
+            }
             sendResponse(response);
           }
         );
@@ -1086,6 +1089,9 @@ browser.runtime.onMessage.addListener(
       if (message.type === 'SAVE_BY_URL') {
         const request = message as SaveByUrlRequest;
         handleSaveByUrl(request.url, request.requestId).then((response) => {
+          if (response.success) {
+            incrementEngagement('postsSavedByUrl').catch(console.warn);
+          }
           sendResponse(response);
         });
         return true; // Async response
