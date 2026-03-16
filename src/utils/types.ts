@@ -809,7 +809,7 @@ export interface ClearDataResponse {
 export interface DiscoveredFeed {
   url: string;
   title?: string;
-  type: 'rss' | 'atom' | 'unknown';
+  type: 'rss' | 'atom' | 'json' | 'unknown';
 }
 
 /**

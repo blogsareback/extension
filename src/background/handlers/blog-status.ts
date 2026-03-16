@@ -89,18 +89,35 @@ function resolveUrlForTesting(url: string, baseUrl: string): string {
 }
 
 /**
- * Extract the first post URL from feed XML
+ * Extract the first post URL from feed content (XML or JSON Feed)
  */
-function extractFirstPostUrlFromXml(feedXml: string, feedUrl: string): string | null {
+function extractFirstPostUrl(feedContent: string, feedUrl: string): string | null {
   try {
+    const trimmed = feedContent.trim();
+
+    // JSON Feed: extract url or external_url from first item
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.items?.[0]) {
+          const item = parsed.items[0];
+          const url = item.external_url || item.url;
+          if (url) return resolveUrlForTesting(url, feedUrl);
+        }
+      } catch {
+        // Not valid JSON
+      }
+      return null;
+    }
+
     // Try RSS format: <item><link>...</link></item>
-    const rssLinkMatch = feedXml.match(/<item[^>]*>[\s\S]*?<link>([^<]+)<\/link>/i);
+    const rssLinkMatch = feedContent.match(/<item[^>]*>[\s\S]*?<link>([^<]+)<\/link>/i);
     if (rssLinkMatch && rssLinkMatch[1]) {
       return resolveUrlForTesting(rssLinkMatch[1].trim(), feedUrl);
     }
 
     // Try Atom format: <entry><link href="..."/></entry>
-    const atomLinkMatch = feedXml.match(/<entry[^>]*>[\s\S]*?<link[^>]*href\s*=\s*["']([^"']+)["']/i);
+    const atomLinkMatch = feedContent.match(/<entry[^>]*>[\s\S]*?<link[^>]*href\s*=\s*["']([^"']+)["']/i);
     if (atomLinkMatch && atomLinkMatch[1]) {
       return resolveUrlForTesting(atomLinkMatch[1].trim(), feedUrl);
     }
@@ -114,22 +131,43 @@ function extractFirstPostUrlFromXml(feedXml: string, feedUrl: string): string | 
 /**
  * Detect if feed has full content by analyzing post content lengths
  */
-function detectFullContentFromXml(feedXml: string): boolean | null {
+function detectFullContent(feedContent: string): boolean | null {
   try {
-    // Extract content from posts
+    const trimmed = feedContent.trim();
+
+    // JSON Feed: analyze content_html or content_text lengths
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (!parsed.items || parsed.items.length === 0) return null;
+
+        const sample = parsed.items.slice(0, 5);
+        const avgLength = sample.reduce((sum: number, item: { content_html?: string; content_text?: string }) => {
+          const content = item.content_html || item.content_text || '';
+          const textOnly = content.replace(/<[^>]+>/g, '').replace(/&[^;]+;/g, ' ');
+          return sum + textOnly.length;
+        }, 0) / sample.length;
+
+        return avgLength > 800;
+      } catch {
+        return null;
+      }
+    }
+
+    // XML: Extract content from posts
     const contentMatches: string[] = [];
 
     // Try content:encoded (RSS)
     const contentEncodedRegex = /<content:encoded[^>]*>([\s\S]*?)<\/content:encoded>/gi;
     let match;
-    while ((match = contentEncodedRegex.exec(feedXml)) !== null && contentMatches.length < 5) {
+    while ((match = contentEncodedRegex.exec(feedContent)) !== null && contentMatches.length < 5) {
       contentMatches.push(match[1]);
     }
 
     // Try content (Atom)
     if (contentMatches.length === 0) {
       const contentRegex = /<content[^>]*>([\s\S]*?)<\/content>/gi;
-      while ((match = contentRegex.exec(feedXml)) !== null && contentMatches.length < 5) {
+      while ((match = contentRegex.exec(feedContent)) !== null && contentMatches.length < 5) {
         contentMatches.push(match[1]);
       }
     }
@@ -137,7 +175,7 @@ function detectFullContentFromXml(feedXml: string): boolean | null {
     // Try description (RSS fallback)
     if (contentMatches.length === 0) {
       const descRegex = /<description[^>]*>([\s\S]*?)<\/description>/gi;
-      while ((match = descRegex.exec(feedXml)) !== null && contentMatches.length < 5) {
+      while ((match = descRegex.exec(feedContent)) !== null && contentMatches.length < 5) {
         contentMatches.push(match[1]);
       }
     }
@@ -198,7 +236,7 @@ export async function testBlogStatus(
         {
           headers: {
             'User-Agent': USER_AGENT,
-            Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+            Accept: 'application/rss+xml, application/atom+xml, application/feed+json, application/json, application/xml, text/xml, */*',
           },
           redirect: 'follow',
         },
@@ -214,10 +252,10 @@ export async function testBlogStatus(
 
       // Test 2: Full content detection
       const feedXml = await feedResponse.text();
-      result.hasFullContent = detectFullContentFromXml(feedXml);
+      result.hasFullContent = detectFullContent(feedXml);
 
       // Extract first post URL for further tests
-      const postUrl = extractFirstPostUrlFromXml(feedXml, feedUrl);
+      const postUrl = extractFirstPostUrl(feedXml, feedUrl);
 
       if (postUrl && isValidFeedUrl(postUrl)) {
         // Test 3: Post CORS (posts_require_proxy)

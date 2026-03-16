@@ -144,9 +144,28 @@ async function isValidFeed(url: string): Promise<{ valid: boolean; title?: strin
     }
 
     const text = await response.text();
-    const lowerContent = text.toLowerCase();
+    const trimmed = text.trim();
+
+    // Check for JSON Feed
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          typeof parsed.version === 'string' &&
+          parsed.version.includes('jsonfeed.org')
+        ) {
+          return { valid: true, title: parsed.title };
+        }
+      } catch {
+        // Not valid JSON
+      }
+      return { valid: false };
+    }
 
     // Check for feed-like XML
+    const lowerContent = text.toLowerCase();
     const isRssOrAtom =
       (lowerContent.includes('<rss') ||
         lowerContent.includes('<feed') ||

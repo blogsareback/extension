@@ -216,27 +216,53 @@ async function fetchNewestPostDate(
         }
       }
 
-      const xml = await response.text();
+      const feedText = await response.text();
 
       // Cache the content if requested (prefetch feature)
-      if (cacheContent && xml) {
+      if (cacheContent && feedText) {
         try {
-          await setFeedCache(feedUrl, xml, etagHeader, lastModifiedHeader);
+          await setFeedCache(feedUrl, feedText, etagHeader, lastModifiedHeader);
           console.log(`[Service Worker] Prefetched feed cached: ${feedUrl}`);
         } catch (cacheError) {
           console.warn('[Service Worker] Failed to cache prefetched feed:', cacheError);
         }
       }
 
-      // Quick regex-based date extraction (much faster than full parsing)
+      // Check if it's a JSON Feed
+      const trimmedFeed = feedText.trim();
+      if (trimmedFeed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmedFeed);
+          if (
+            typeof parsed.version === 'string' &&
+            parsed.version.includes('jsonfeed.org') &&
+            Array.isArray(parsed.items) &&
+            parsed.items.length > 0
+          ) {
+            const item = parsed.items[0];
+            const dateStr = item.date_published || item.date_modified || '';
+            if (dateStr) {
+              const date = new Date(dateStr);
+              if (!isNaN(date.getTime())) {
+                return date.getTime();
+              }
+            }
+          }
+        } catch {
+          // Not valid JSON, fall through to XML parsing
+        }
+        return null;
+      }
+
+      // Quick regex-based date extraction for XML feeds (much faster than full parsing)
       // Search within first <item> or <entry> to get the newest post's date,
       // not a stale channel-level date
-      const itemIdx = xml.search(/<item[\s>]/i);
-      const entryIdx = xml.search(/<entry[\s>]/i);
+      const itemIdx = feedText.search(/<item[\s>]/i);
+      const entryIdx = feedText.search(/<entry[\s>]/i);
       const firstItemIndex = itemIdx >= 0 && entryIdx >= 0
         ? Math.min(itemIdx, entryIdx)
         : Math.max(itemIdx, entryIdx);
-      const searchXml = firstItemIndex >= 0 ? xml.slice(firstItemIndex) : xml;
+      const searchXml = firstItemIndex >= 0 ? feedText.slice(firstItemIndex) : feedText;
 
       const datePatterns = [
         /<pubDate>([^<]+)<\/pubDate>/i,

@@ -29,8 +29,14 @@ export function parseFeedLinksFromHTML(html: string, baseUrl: string): Discovere
     const typeMatch = linkTag.match(/type\s*=\s*["']([^"']+)["']/i);
     const type = typeMatch ? typeMatch[1].toLowerCase() : '';
 
-    // Check if it's a feed type
-    if (!type.includes('rss') && !type.includes('atom') && !type.includes('xml')) {
+    // Check if it's a feed type (RSS, Atom, or JSON Feed)
+    if (
+      !type.includes('rss') &&
+      !type.includes('atom') &&
+      !type.includes('xml') &&
+      !type.includes('feed+json') &&
+      type !== 'application/json'
+    ) {
       continue;
     }
 
@@ -53,6 +59,8 @@ export function parseFeedLinksFromHTML(html: string, baseUrl: string): Discovere
         feedType = 'atom';
       } else if (type.includes('rss')) {
         feedType = 'rss';
+      } else if (type.includes('json')) {
+        feedType = 'json';
       }
 
       feeds.push({
@@ -69,9 +77,27 @@ export function parseFeedLinksFromHTML(html: string, baseUrl: string): Discovere
 }
 
 /**
- * Check if content looks like a valid RSS/Atom feed
+ * Check if content looks like a valid RSS/Atom/JSON feed
  */
 export function isFeedContent(text: string): boolean {
+  const trimmed = text.trim();
+
+  // Check for JSON Feed
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        typeof parsed.version === 'string' &&
+        parsed.version.includes('jsonfeed.org')
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // Check for XML feeds (RSS/Atom/RDF)
   const lowerContent = text.toLowerCase();
   return (
     (lowerContent.includes('<rss') ||

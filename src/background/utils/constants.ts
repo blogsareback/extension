@@ -64,6 +64,8 @@ export const COMMON_FEED_PATHS = [
   '/feeds/posts/default',
   '/blog/feed',
   '/blog/rss',
+  '/feed.json',
+  '/json',
 ];
 
 // Feed path probing configuration
