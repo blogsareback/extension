@@ -8,6 +8,7 @@ import {
   COMMON_FEED_PATHS,
   STORAGE_KEY_PROBE_CACHE,
   PROBE_CACHE_TTL_MS,
+  PROBE_CACHE_MAX_ENTRIES,
   PROBE_TIMEOUT,
   PROBE_BATCH_SIZE,
   USER_AGENT,
@@ -105,6 +106,15 @@ async function setCachedProbe(domain: string, feeds: FeedLink[]): Promise<void> 
       if (now - entry.timestamp > PROBE_CACHE_TTL_MS) {
         delete cache[key];
       }
+    }
+
+    // If still over max entries, evict oldest
+    const entries = Object.entries(cache);
+    if (entries.length >= PROBE_CACHE_MAX_ENTRIES) {
+      entries
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .slice(0, entries.length - PROBE_CACHE_MAX_ENTRIES + 1)
+        .forEach(([key]) => delete cache[key]);
     }
 
     // Add new entry

@@ -71,6 +71,7 @@ export const COMMON_FEED_PATHS = [
 // Feed path probing configuration
 export const STORAGE_KEY_PROBE_CACHE = 'probeCache';
 export const PROBE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+export const PROBE_CACHE_MAX_ENTRIES = 500; // Cap cache size to prevent storage bloat
 export const PROBE_TIMEOUT = 8000; // 8 seconds per path check
 export const PROBE_BATCH_SIZE = 3; // Check 3 paths in parallel
 

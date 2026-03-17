@@ -83,25 +83,14 @@ function getDomainFromUrl(url: string): string {
  */
 export async function createOptionsContextMenu(): Promise<void> {
   try {
-    // Remove first to avoid duplicate ID error on service worker restart
-    try {
-      await browser.contextMenus.remove(SETTINGS_MENU_ID);
-    } catch {
-      // Menu doesn't exist yet, that's fine
-    }
+    // Remove all menus first to avoid duplicate ID errors on service worker restart
+    await browser.contextMenus.removeAll();
 
     browser.contextMenus.create({
       id: SETTINGS_MENU_ID,
       title: 'Settings',
       contexts: ['action'], // Appears when right-clicking the extension icon
     });
-
-    // "Save page offline" - appears on all pages
-    try {
-      await browser.contextMenus.remove(SAVE_PAGE_MENU_ID);
-    } catch {
-      // Menu doesn't exist yet, that's fine
-    }
 
     browser.contextMenus.create({
       id: SAVE_PAGE_MENU_ID,
